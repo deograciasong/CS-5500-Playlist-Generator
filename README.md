@@ -462,16 +462,6 @@ Use [Thunder Client](https://www.thunderclient.com/) (VS Code extension) or [Pos
 
 ---
 
-## 📚 Documentation
-
-- [Project Setup Guide](./docs/PROJECT_SETUP_MERN.md)
-- [Quick Reference](./docs/QUICK_REFERENCE_MERN.md)
-- [Troubleshooting Guide](./docs/TROUBLESHOOTING_MERN.md)
-- [API Documentation](./docs/API.md)
-- [Software Requirements Specification](./docs/CS5500-SRS-031025-030722.pdf)
-
----
-
 ### Code Review Process
 
 1. All code changes require review by at least one team member
