@@ -386,24 +386,6 @@ git commit -m "docs: Update API documentation"
 
 ### Common Issues
 
-#### Port Already in Use
-
-**Problem:** `Error: Port 5173 or 5000 is already in use`
-
-**Solution:**
-```bash
-# Mac/Linux - Kill process on port
-lsof -ti:5173 | xargs kill -9
-lsof -ti:5000 | xargs kill -9
-
-# Windows
-netstat -ano | findstr :5173
-taskkill /PID <PID> /F
-
-# Or use different port
-npm run dev -- --port 3000
-```
-
 #### MongoDB Connection Failed
 
 **Problem:** `MongooseServerSelectionError: connect ECONNREFUSED`
@@ -463,50 +445,6 @@ Use [Thunder Client](https://www.thunderclient.com/) (VS Code extension) or [Pos
 3. Address any feedback from reviewers
 4. Once approved, code will be merged to main branch
 
----
-
-## 📋 Roadmap
-
-### Phase 1: Foundation (Weeks 1-2)
-- [x] Project setup and structure
-- [x] Frontend boilerplate with React + Vite
-- [x] shadcn/ui integration
-- [ ] Backend API setup
-- [ ] MongoDB connection
-- [ ] User authentication
-
-### Phase 2: Core Features (Weeks 3-4)
-- [ ] Spotify OAuth integration
-- [ ] Playlist CRUD operations
-- [ ] User profile management
-- [ ] Basic UI components
-
-### Phase 3: ML Integration (Weeks 5-6)
-- [ ] Mood detection algorithm
-- [ ] ML model training
-- [ ] Playlist generation based on mood
-- [ ] Song recommendation engine
-
-### Phase 4: Enhancement (Weeks 7-8)
-- [ ] Real-time features
-- [ ] Social features (sharing, likes)
-- [ ] Audio preview
-- [ ] Analytics dashboard
-
-### Phase 5: Deployment (Week 9-10)
-- [ ] Performance optimization
-- [ ] Security hardening
-- [ ] Production deployment
-- [ ] Documentation completion
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
 
 ## 🙏 Acknowledgments
 
@@ -517,13 +455,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Spotify Web API](https://developer.spotify.com/) - Music data
 - [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) - Database hosting
 
----
 
-## 📊 Project Status
-
-🚧 **Currently in active development** 🚧
-
-- ✅ Frontend boilerplate complete
-- 🔄 Backend API in progress
-- ⏳ ML model pending
-- ⏳ Spotify integration pending
