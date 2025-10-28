@@ -2,12 +2,6 @@
 
 > An intelligent playlist generator that creates personalized music playlists based on your mood using AI and the Spotify API.
 
-[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
-[![React](https://img.shields.io/badge/React-19-blue)](https://react.dev/)
-[![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-green)](https://www.mongodb.com/cloud/atlas)
-
----
 
 ## 👥 Team
 
