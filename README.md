@@ -7,10 +7,13 @@
 
 **CS5500 Development Team**
 
-- GitHub: [@deograciasong](https://github.com/deograciasong)
+- GitHub: Gio Ong - [@deograciasong](https://github.com/deograciasong)
 
-- GitHub: [@jennyncodes](https://github.com/jennyncodes)
+- GitHub: Jenny Nguyen - [@jennyncodes](https://github.com/jennyncodes)
 
+- GitHub: Zijue Mu - [@mzj37](https://github.com/mzj37)
+
+- GitHub: Julia Kim - [@juliahnkim(https://github.com/juliahnkim)
 
 
 ---
