@@ -2,15 +2,18 @@
   "name": "backend",
   "version": "1.0.0",
   "type": "module",
-  "main": "index.js",
-  "scripts": {
-    "dev": "nodemon server.js"
-  },
-  
+  "main": "dist/server.js",
+  "description": "",
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "seed:moods:dev": "ts-node-dev --transpile-only src/seeds/moodsSeeder.ts",
+    "seed:moods": "node dist/seeds/moodsSeeder.js"
+  },
   "dependencies": {
     "axios": "^1.13.1",
     "cookie-parser": "^1.4.7",
@@ -21,6 +24,11 @@
     "mongoose": "^8.19.2"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "@types/node": "^24.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.9.3"
   }
 }
