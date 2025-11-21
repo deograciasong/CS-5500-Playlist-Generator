@@ -7,10 +7,13 @@
 
 **CS5500 Development Team**
 
-- GitHub: [@deograciasong](https://github.com/deograciasong)
+- GitHub: Gio Ong - [@deograciasong (https://github.com/deograciasong)]
 
-- GitHub: [@jennyncodes](https://github.com/jennyncodes)
+- GitHub: Jenny Nguyen - [@jennyncodes (https://github.com/jennyncodes)]
 
+- GitHub: Zijue Mu - [@mzj37 (https://github.com/mzj37)]
+
+- GitHub: Julia Kim - [@juliahnkim (https://github.com/juliahnkim)]
 
 
 ---
@@ -60,10 +63,10 @@ The CS5500 Playlist Generator is a smart system that lets users describe their m
 - ✅ Component library with shadcn/ui
 - ✅ TypeScript for type safety
 - ✅ Fast development with Vite HMR
+- ✅ User authentication and authorization
+- ✅ Spotify OAuth integration
 
 ### Planned Features
-- 🔜 User authentication and authorization
-- 🔜 Spotify OAuth integration
 - 🔜 Mood-based playlist generation
 - 🔜 AI-powered song recommendations
 - 🔜 Playlist management (CRUD operations)
@@ -201,61 +204,7 @@ npm run preview  # Preview the production build
 
 ---
 
-## 📁 Project Structure
 
-```
-CS-5500-Playlist-Generator/
-├── frontend/
-│   └── playlist-generator/          # React frontend
-│       ├── src/
-│       │   ├── components/          # React components
-│       │   │   └── ui/              # shadcn/ui components
-│       │   ├── services/            # API services
-│       │   ├── assets/              # Static assets
-│       │   ├── App.tsx              # Main App component
-│       │   ├── main.tsx             # Entry point
-│       │   └── index.css            # Global styles
-│       ├── public/                  # Public assets
-│       ├── package.json             # Frontend dependencies
-│       ├── vite.config.ts           # Vite configuration
-│       ├── tsconfig.json            # TypeScript config
-│       └── components.json          # shadcn/ui config
-│
-├── backend/                         # Express.js backend
-│   ├── models/                      # Mongoose schemas
-│   │   ├── User.js
-│   │   └── Playlist.js
-│   ├── controllers/                 # Route controllers
-│   │   ├── authController.js
-│   │   └── playlistController.js
-│   ├── routes/                      # Express routes
-│   │   ├── auth.js
-│   │   └── playlists.js
-│   ├── middleware/                  # Custom middleware
-│   │   └── auth.js
-│   ├── config/                      # Configuration files
-│   │   └── db.js
-│   ├── utils/                       # Helper functions
-│   ├── .env                         # Environment variables
-│   ├── .gitignore                   # Git ignore rules
-│   ├── package.json                 # Backend dependencies
-│   └── server.js                    # Express server
-│
-├── ml_model/                        # Python ML model
-│   ├── model.py                     # ML model implementation
-│   ├── train.py                     # Training script
-│   └── requirements.txt             # Python dependencies
-│
-├── docs/                            # Documentation
-│   └── CS5500-SRS-031025-030722.pdf
-│
-├── .gitignore                       # Root gitignore
-└── README.md                        # This file
-```
-
----
-
-## 🛠️ Available Scripts
 
 ### Frontend Scripts
 
@@ -378,81 +327,3 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 git commit -m "feat: Add user authentication"
 git commit -m "fix: Resolve playlist generation bug"
 git commit -m "docs: Update API documentation"
-```
-
----
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-#### MongoDB Connection Failed
-
-**Problem:** `MongooseServerSelectionError: connect ECONNREFUSED`
-
-**Solution:**
-1. Check if MongoDB is running (local installation)
-2. Verify connection string in `.env`
-3. For Atlas: Check IP whitelist and database credentials
-4. Ensure database name is included in URI
-
-#### Module Not Found
-
-**Problem:** `Error: Cannot find module`
-
-**Solution:**
-```bash
-# Clear and reinstall dependencies
-rm -rf node_modules package-lock.json
-npm cache clean --force
-npm install
-```
-
-#### CORS Errors
-
-**Problem:** `Access-Control-Allow-Origin` errors
-
-**Solution:**
-- Verify CORS is configured in backend `server.js`
-- Check frontend URL in CORS settings matches your dev server
-- Ensure backend is running before making API calls
-
----
-
-## 🧪 Testing
-
-### Frontend Testing
-```bash
-cd frontend/playlist-generator
-npm run test
-```
-
-### Backend Testing
-```bash
-cd backend
-npm run test
-```
-
-### API Testing
-Use [Thunder Client](https://www.thunderclient.com/) (VS Code extension) or [Postman](https://www.postman.com/) to test API endpoints.
-
----
-
-### Code Review Process
-
-1. All code changes require review by at least one team member
-2. Ensure all tests pass before requesting review
-3. Address any feedback from reviewers
-4. Once approved, code will be merged to main branch
-
-
-## 🙏 Acknowledgments
-
-- [React](https://react.dev/) - UI framework
-- [Vite](https://vitejs.dev/) - Build tool
-- [shadcn/ui](https://ui.shadcn.com/) - Component library
-- [Tailwind CSS](https://tailwindcss.com/) - CSS framework
-- [Spotify Web API](https://developer.spotify.com/) - Music data
-- [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) - Database hosting
-
-
