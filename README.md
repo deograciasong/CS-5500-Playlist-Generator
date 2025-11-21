@@ -7,10 +7,13 @@
 
 **CS5500 Development Team**
 
-- GitHub: [@deograciasong](https://github.com/deograciasong)
+- GitHub: Gio Ong - [@deograciasong (https://github.com/deograciasong)]
 
-- GitHub: [@jennyncodes](https://github.com/jennyncodes)
+- GitHub: Jenny Nguyen - [@jennyncodes (https://github.com/jennyncodes)]
 
+- GitHub: Zijue Mu - [@mzj37 (https://github.com/mzj37)]
+
+- GitHub: Julia Kim - [@juliahnkim (https://github.com/juliahnkim)]
 
 
 ---
@@ -60,10 +63,10 @@ The CS5500 Playlist Generator is a smart system that lets users describe their m
 - ✅ Component library with shadcn/ui
 - ✅ TypeScript for type safety
 - ✅ Fast development with Vite HMR
+- ✅ User authentication and authorization
+- ✅ Spotify OAuth integration
 
 ### Planned Features
-- 🔜 User authentication and authorization
-- 🔜 Spotify OAuth integration
 - 🔜 Mood-based playlist generation
 - 🔜 AI-powered song recommendations
 - 🔜 Playlist management (CRUD operations)
