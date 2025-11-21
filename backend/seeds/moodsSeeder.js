@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import dotenv from "dotenv";
-import { Mood } from "../models/index.js";
+import { Mood } from "../src/models/index.js";
 
 dotenv.config();
 
