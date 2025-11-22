@@ -206,6 +206,7 @@ npm run preview  # Preview the production build
 
 
 
+
 ### Frontend Scripts
 
 | Command | Description |
