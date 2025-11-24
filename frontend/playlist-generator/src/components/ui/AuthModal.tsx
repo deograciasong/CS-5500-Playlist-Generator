@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { authService } from '../../services/auth.service';
 import './AuthModal.css';
 
@@ -11,6 +12,7 @@ interface AuthModalProps {
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   if (!isOpen) return null;
 
@@ -34,6 +36,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('Email login coming soon! Please use Spotify for now.');
+  };
+
+  const handleSignupClick = () => {
+    onClose(); // Close the modal first
+    navigate('/signup'); // Navigate to signup page
   };
 
   return (
@@ -99,7 +106,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           </form>
 
           <p className="signup-prompt">
-            Don't have an account? <a href="#" className="signup-link">Sign up</a>
+            Don't have an account?{' '}
+            <span 
+              className="signup-link"
+              onClick={handleSignupClick}
+              style={{ cursor: 'pointer' }}
+            >
+              Sign up
+            </span>
           </p>
         </div>
       </div>
