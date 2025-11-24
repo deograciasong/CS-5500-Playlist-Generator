@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Background } from '../../components/ui/Background';
 import { Navbar } from '../../components/ui/Navbar';
+import { AuthModal } from '../../components/ui/AuthModal';
 import { authService } from '../../services/auth.service';
 import '../../main.css';
-
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -12,6 +12,7 @@ export const LandingPage: React.FC = () => {
 
   const handleAuthSuccess = (token: string) => {
     // Token is already saved in AuthModal
+    localStorage.setItem('token', token);
     navigate('/dashboard');
   };
 
@@ -19,11 +20,11 @@ export const LandingPage: React.FC = () => {
     <>
       <Background />
       <Navbar onGetStarted={() => setAuthModalOpen(true)} />
-      
+
       <div className="hero-section">
         <h1 className="hero-title">Transform Your Mood Into Music</h1>
         <p className="hero-subtitle">
-          AI-powered playlist generation that understands your emotions. Just describe how you're feeling, 
+          AI-powered playlist generation that understands your emotions. Just describe how you're feeling,
           and we'll create the perfect soundtrack from your own Spotify library.
         </p>
         <button className="btn-cta" onClick={() => setAuthModalOpen(true)}>
@@ -31,9 +32,11 @@ export const LandingPage: React.FC = () => {
         </button>
       </div>
 
-      
-
-  
+      <AuthModal 
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onSuccess={handleAuthSuccess}
+      />
     </>
   );
 };
