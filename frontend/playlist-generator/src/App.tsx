@@ -3,7 +3,9 @@ import { LandingPage } from './Pages/LandingPage';
 import { Dashboard } from './Pages/Dashboard';
 import { AuthCallback } from './Pages/AuthCallback';
 import { Playlist } from './Pages/Playlist';
- 
+import { Library } from './Pages/Library';
+
+
 
 
 export default function App() {
@@ -15,7 +17,8 @@ export default function App() {
         <Route path="/Dashboard" element={<Dashboard />} />
         <Route path="/auth/success" element={<AuthCallback />} />
         <Route path="/playlist" element={<Playlist />} />
-        {/* Add more routes as needed */}
+        <Route path="/library" element={<Library />} />
+
       </Routes>
     </Router>
   );

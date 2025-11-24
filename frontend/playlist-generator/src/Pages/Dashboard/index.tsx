@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../../components/ui/Sidebar';
-import { PlaylistDisplay } from '../../components/ui/PlaylistDisplay';
 import { SongRecommendationService } from '../../services/songRecommendation.service';
 import type { User } from '../../types';
-import type { Song, PlaylistResult } from '../../types/song.types';
+import type { Song } from '../../types/song.types';
 import '../../main.css';
 
 const toolTabs = [
@@ -22,11 +22,11 @@ const examplePrompts = [
 ];
 
 export const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [user] = useState<User | null>({ displayName: 'Jenny' } as User);
   const [activeTab, setActiveTab] = useState(1);
   const [moodInput, setMoodInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [generatedPlaylist, setGeneratedPlaylist] = useState<PlaylistResult | null>(null);
   const [recommendationService, setRecommendationService] = useState<SongRecommendationService | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,7 +37,6 @@ export const Dashboard: React.FC = () => {
   const loadSongsData = async () => {
     try {
       // Load the songs dataset
-      // Replace this path with your actual dataset location
       const response = await fetch('/data/spotify_songs.json');
       
       if (!response.ok) {
@@ -57,6 +56,7 @@ export const Dashboard: React.FC = () => {
 
   const handleLogout = () => {
     console.log('Logged out');
+    navigate('/');
   };
 
   const handleGenerate = async () => {
@@ -82,7 +82,8 @@ export const Dashboard: React.FC = () => {
       if (playlist.songs.length === 0) {
         setError('No songs found matching your mood. Try a different description!');
       } else {
-        setGeneratedPlaylist(playlist);
+        // Navigate to playlist page with the generated playlist data
+        navigate('/playlist', { state: { playlist } });
       }
     } catch (error) {
       console.error('Error generating playlist:', error);
@@ -94,10 +95,6 @@ export const Dashboard: React.FC = () => {
 
   const handleExampleClick = (prompt: string) => {
     setMoodInput(prompt);
-  };
-
-  const handleClosePlaylist = () => {
-    setGeneratedPlaylist(null);
   };
 
   const getGreeting = () => {
@@ -188,24 +185,7 @@ Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studyin
         </div>
       </div>
 
-      <div className="featured-section">
-        <div className="featured-header">
-          <h3>Your Recent Playlists</h3>
-          <button className="play-all-btn">▶️ Play All</button>
-        </div>
-        <div className="featured-items">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="featured-item"></div>
-          ))}
-        </div>
-      </div>
-
-      {generatedPlaylist && (
-        <PlaylistDisplay 
-          playlist={generatedPlaylist} 
-          onClose={handleClosePlaylist} 
-        />
-      )}
+     
     </>
   );
 };

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from '../../components/ui/Sidebar';
+import { playlistStorage } from '../../services/playliststorage.service';
 import type { PlaylistResult } from '../../types/song.types';
 import '../../main.css';
 
@@ -8,6 +9,14 @@ export const Playlist: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const playlist = location.state?.playlist as PlaylistResult | null;
+  const [isSaved, setIsSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Debug: Log when component mounts
+    console.log('Playlist component mounted');
+    console.log('Playlist data:', playlist);
+  }, [playlist]);
 
   const handleLogout = () => {
     console.log('Logged out');
@@ -16,6 +25,43 @@ export const Playlist: React.FC = () => {
 
   const handleBack = () => {
     navigate('/dashboard');
+  };
+
+  const handleSavePlaylist = () => {
+    console.log('Save button clicked!');
+    
+    if (!playlist) {
+      console.error('No playlist data to save');
+      setSaveError('No playlist data available');
+      return;
+    }
+    
+    try {
+      console.log('Attempting to save playlist...');
+      const savedPlaylist = playlistStorage.savePlaylist(playlist);
+      console.log('Playlist saved successfully:', savedPlaylist);
+      
+      setIsSaved(true);
+      setSaveError(null);
+      
+      // Show success message temporarily
+      setTimeout(() => {
+        setIsSaved(false);
+      }, 3000);
+      
+      // Also log to console for verification
+      console.log('All saved playlists:', playlistStorage.getAllPlaylists());
+      
+    } catch (error) {
+      console.error('Error saving playlist:', error);
+      setSaveError('Failed to save playlist. Check console for details.');
+      alert('Failed to save playlist. Please check the console for errors.');
+    }
+  };
+
+  const handleViewLibrary = () => {
+    console.log('Navigating to library...');
+    navigate('/library');
   };
 
   const formatDuration = (ms: number): string => {
@@ -60,83 +106,85 @@ export const Playlist: React.FC = () => {
       />
 
       <div className="playlist-page">
-        <div className="playlist-container">
-          {/* Header Section */}
-          <div className="playlist-page-header">
-            <button className="back-button" onClick={handleBack}>
-              ← Back to Dashboard
-            </button>
-            
-            <div className="playlist-title-section">
-              <div className="playlist-icon">🎵</div>
-              <div>
-                <h1 className="playlist-title">{playlist.mood} Playlist</h1>
-                <p className="playlist-subtitle">{playlist.description}</p>
-                <p className="playlist-meta">
-                  {playlist.songs.length} songs • {formatDuration(totalDuration)}
-                </p>
-              </div>
-            </div>
-
-            <div className="playlist-actions-top">
-              <button className="action-btn primary">
-                <span>▶️</span> Play All
-              </button>
-              <button className="action-btn secondary">
-                <span>📤</span> Export to Spotify
-              </button>
-              <button className="action-btn secondary">
-                <span>💾</span> Save Playlist
-              </button>
-            </div>
+        <button className="back-button" onClick={handleBack}>
+          ← Back to Dashboard
+        </button>
+        
+        {/* Top Section - From Option 2 */}
+        <div className="playlist-header-section">
+          <div className="playlist-icon-large">🎵</div>
+          <div className="playlist-header-info">
+            <h1 className="playlist-main-title">{playlist.mood} Playlist</h1>
+            <p className="playlist-description">{playlist.description}</p>
+            <p className="playlist-meta-info">
+              {playlist.songs.length} songs • {formatDuration(totalDuration)}
+            </p>
           </div>
+        </div>
 
-          {/* Songs Table */}
-          <div className="playlist-table">
-            <div className="table-header">
-              <div className="col-number">#</div>
-              <div className="col-title">Title</div>
-              <div className="col-genre">Genre</div>
-              <div className="col-stats">Stats</div>
-              <div className="col-duration">Duration</div>
-            </div>
+        <div className="playlist-actions-bar">
+          <button className="playlist-action-btn primary">
+            <span>▶️</span> Play All
+          </button>
+          <button className="playlist-action-btn secondary">
+            <span>📤</span> Export to Spotify
+          </button>
+          <button 
+            className={`playlist-action-btn ${isSaved ? 'saved' : 'secondary'}`}
+            onClick={handleSavePlaylist}
+            disabled={isSaved}
+          >
+            <span>{isSaved ? '✓' : '💾'}</span> {isSaved ? 'Saved!' : 'Save Playlist'}
+          </button>
+        </div>
 
-            <div className="table-body">
-              {playlist.songs.map((song, index) => (
-                <div key={song.track_id} className="table-row">
-                  <div className="col-number">{index + 1}</div>
-                  
-                  <div className="col-title">
-                    <div className="song-main-info">
-                      <div className="song-name">{song.track_name}</div>
-                      <div className="song-artist">{song.artists}</div>
-                    </div>
-                  </div>
-                  
-                  <div className="col-genre">
-                    <span className="genre-badge">{song.track_genre}</span>
-                  </div>
-                  
-                  <div className="col-stats">
-                    <div className="stats-group">
-                      <span className="stat-item" title="Energy">
-                        ⚡ {Math.round(song.energy * 100)}%
-                      </span>
-                      <span className="stat-item" title="Happiness">
-                        😊 {Math.round(song.valence * 100)}%
-                      </span>
-                      <span className="stat-item" title="Danceability">
-                        💃 {Math.round(song.danceability * 100)}%
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="col-duration">
-                    {formatDuration(song.duration_ms)}
-                  </div>
+        {/* Success Banner */}
+        {isSaved && (
+          <div className="save-success-banner">
+            Playlist saved to your library! 
+            <button className="view-library-link" onClick={handleViewLibrary}>
+              View Library
+            </button>
+          </div>
+        )}
+
+        {/* Error Message */}
+        {saveError && (
+          <div className="save-error-banner">
+            {saveError}
+          </div>
+        )}
+
+        {/* Song List - From Option 1 */}
+        <div className="playlist-songs-container">
+          <div className="playlist-songs-list">
+            {playlist.songs.map((song, index) => (
+              <div key={song.track_id} className="playlist-song-item">
+                <div className="song-item-number">{index + 1}</div>
+                
+                <div className="song-item-info">
+                  <div className="song-item-title">{song.track_name}</div>
+                  <div className="song-item-artist">{song.artists}</div>
                 </div>
-              ))}
-            </div>
+                
+                <div className="song-item-genre">
+                  <span className="genre-tag">{song.track_genre}</span>
+                </div>
+                
+                <div className="song-item-stats">
+                  <span className="stat-badge" title="Energy">
+                    ⚡ {Math.round(song.energy * 100)}%
+                  </span>
+                  <span className="stat-badge" title="Happiness">
+                    😊 {Math.round(song.valence * 100)}%
+                  </span>
+                </div>
+                
+                <div className="song-item-duration">
+                  {formatDuration(song.duration_ms)}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
