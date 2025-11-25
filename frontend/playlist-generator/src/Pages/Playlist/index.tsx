@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from '../../components/ui/Sidebar';
 import { playlistStorage } from '../../services/playlistStorage.service';
+import { playlistService } from '../../services/playlist.service';
 import type { PlaylistResult } from '../../types/song.types';
 import '../../main.css';
 
@@ -11,6 +12,9 @@ export const Playlist: React.FC = () => {
   const playlist = location.state?.playlist as PlaylistResult | null;
   const [isSaved, setIsSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportedUrl, setExportedUrl] = useState<string | null>(null);
 
   useEffect(() => {
     // Debug: Log when component mounts
@@ -26,6 +30,7 @@ export const Playlist: React.FC = () => {
   const handleBack = () => {
     navigate('/dashboard');
   };
+
 
   const handleSavePlaylist = () => {
     console.log('Save button clicked!');
@@ -62,6 +67,41 @@ export const Playlist: React.FC = () => {
   const handleViewLibrary = () => {
     console.log('Navigating to library...');
     navigate('/library');
+  };
+
+  const handleExportToSpotify = async () => {
+    if (!playlist) {
+      setExportError('No playlist data available');
+      return;
+    }
+
+    setExportError(null);
+    setIsExporting(true);
+    setExportedUrl(null);
+
+    try {
+      const name = `${playlist.mood}`;
+      const description = playlist.description || '';
+      const created = await playlistService.createSpotifyPlaylist({
+        name,
+        description,
+        public: true,
+      });
+
+      const uris = playlist.songs.map((song) => `spotify:track:${song.track_id}`);
+      if (uris.length > 0) {
+        await playlistService.addTracksToSpotifyPlaylist(created.id, uris);
+      }
+
+      const url = created.external_urls?.spotify ?? `https://open.spotify.com/playlist/${created.id}`;
+      setExportedUrl(url);
+    } catch (error: any) {
+      console.error('Failed to export playlist to Spotify', error);
+      const message = error?.response?.data?.message ?? error?.response?.data?.error ?? error?.message ?? 'Export failed';
+      setExportError(message);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const formatDuration = (ms: number): string => {
@@ -125,8 +165,12 @@ export const Playlist: React.FC = () => {
           <button className="playlist-action-btn primary">
             <span>▶️</span> Play All
           </button>
-          <button className="playlist-action-btn secondary">
-            <span>📤</span> Export to Spotify
+          <button 
+            className="playlist-action-btn secondary"
+            onClick={handleExportToSpotify}
+            disabled={isExporting}
+          >
+            <span>📤</span> {isExporting ? 'Exporting...' : 'Export to Spotify'}
           </button>
           <button 
             className={`playlist-action-btn ${isSaved ? 'saved' : 'secondary'}`}
@@ -151,6 +195,21 @@ export const Playlist: React.FC = () => {
         {saveError && (
           <div className="save-error-banner">
             {saveError}
+          </div>
+        )}
+
+        {/* Export status */}
+        {exportedUrl && (
+          <div className="save-success-banner">
+            Playlist exported to Spotify!{' '}
+            <a href={exportedUrl} target="_blank" rel="noreferrer" className="view-library-link">
+              Open in Spotify
+            </a>
+          </div>
+        )}
+        {exportError && (
+          <div className="save-error-banner">
+            {exportError}
           </div>
         )}
 

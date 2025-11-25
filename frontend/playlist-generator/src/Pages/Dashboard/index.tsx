@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../../components/ui/Sidebar';
 import { analyzeMood } from '../../services/mood.service';
 import { filterSongsByMood } from '../../services/songRecommendation.service';
-import type { User } from '../../types';
+import { authService } from '../../services/auth.service';
+import type { SpotifyUserProfile, User } from '../../types';
 import type { Song } from '../../types/song.types';
 import '../../main.css';
 
@@ -34,17 +35,30 @@ const getUniqueSongs = (songs: Song[]) => {
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [user] = useState<User | null>({ displayName: 'Jenny' } as User);
+  const [user, setUser] = useState<SpotifyUserProfile | User | null>(null);
   const [activeTab, setActiveTab] = useState(1);
   const [moodInput, setMoodInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [songs, setSongs] = useState<Song[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [loadingUser, setLoadingUser] = useState(true);
 
   useEffect(() => {
     loadSongsData();
+    loadUser();
   }, []);
+
+  const loadUser = async () => {
+    try {
+      const profile = await authService.getCurrentUser();
+      setUser(profile);
+    } catch (err) {
+      console.error('Failed to load user:', err);
+      navigate('/');
+    } finally {
+      setLoadingUser(false);
+    }
+  };
 
   const loadSongsData = async () => {
     try {
@@ -66,7 +80,7 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleLogout = () => {
-    console.log('Logged out');
+    authService.logout();
     navigate('/');
   };
 
@@ -129,11 +143,28 @@ export const Dashboard: React.FC = () => {
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    const name = user?.displayName || 'there';
+    const name = user?.display_name || 'there';
     if (hour < 12) return `Good Morning, ${name}! 👋`;
     if (hour < 18) return `Good Afternoon, ${name}! 👋`;
     return `Good Evening, ${name}! 👋`;
   };
+
+  if (loadingUser) {
+    return (
+      <>
+        <div className="gradient-bg"></div>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '100vh',
+          color: 'white'
+        }}>
+          Loading...
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -141,8 +172,9 @@ export const Dashboard: React.FC = () => {
       <Sidebar 
         onLogin={() => {}} 
         onSignup={() => {}} 
-        isAuthenticated={true} 
+        isAuthenticated={!!user} 
         onLogout={handleLogout} 
+        user={user} 
       />
 
       <div className="main-content">

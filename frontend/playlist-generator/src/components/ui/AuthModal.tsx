@@ -23,10 +23,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     setError(null);
     
     try {
-      // Get Spotify auth URL from backend
-      const authUrl = await authService.getSpotifyAuthUrl();
-      
-      // Redirect to Spotify for authentication
+      const authUrl = await authService.startSpotifyLogin();
       window.location.href = authUrl;
     } catch (err) {
       console.error('Spotify login error:', err);
@@ -42,9 +39,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
     try {
       const result = await authService.loginLocal({ email, password });
-      // backend sets httpOnly cookie; also return token/user in body
       const token = result?.token;
-      if (token && onSuccess) onSuccess(token);
+      if (token) {
+        localStorage.setItem('token', token);
+        if (onSuccess) onSuccess(token);
+      }
       onClose();
       navigate('/dashboard');
     } catch (err: any) {
