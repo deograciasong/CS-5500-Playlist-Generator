@@ -39,16 +39,23 @@ export const SignupPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // TODO: Connect to backend when ready
+      // Call backend register endpoint
       console.log('Signup data:', formData);
-      
-      // For now, just show success
-      alert('Account creation will be available soon! Please use Spotify login for now.');
-      navigate('/');
-      
-    } catch (err) {
+      const payload = { name: formData.name, email: formData.email, password: formData.password };
+      const apiModule = await import('../services/api');
+      const api = apiModule.default;
+      const res = await api.post('/auth/register', payload);
+      if (res.status === 201) {
+        alert('Account created successfully. You can now sign in.');
+        navigate('/');
+      } else {
+        console.error('Unexpected register response', res);
+        setError('Unable to create account.');
+      }
+    } catch (err: any) {
       console.error('Signup error:', err);
-      setError('Failed to create account. Please try again.');
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to create account. Please try again.';
+      setError(msg);
     } finally {
       setIsLoading(false);
     }

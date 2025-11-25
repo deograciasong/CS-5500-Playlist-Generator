@@ -12,6 +12,12 @@ export const authService = {
     return response.data.user;
   },
 
+  loginLocal: async (payload: { email: string; password: string }) => {
+    const response = await api.post('/auth/login-local', payload);
+    // return both token and user if provided by backend
+    return response.data;
+  },
+
   logout: () => {
     localStorage.removeItem('token');
   }

@@ -12,6 +12,8 @@ interface AuthModalProps {
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const navigate = useNavigate();
 
   if (!isOpen) return null;
@@ -35,7 +37,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('Email login coming soon! Please use Spotify for now.');
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const result = await authService.loginLocal({ email, password });
+      // backend sets httpOnly cookie; also return token/user in body
+      const token = result?.token;
+      if (token && onSuccess) onSuccess(token);
+      onClose();
+      navigate('/dashboard');
+    } catch (err: any) {
+      console.error('Email login error:', err);
+      const msg = err?.response?.data?.message ?? err?.response?.data?.error ?? err.message ?? 'Login failed';
+      setError(msg);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSignupClick = () => {
@@ -88,20 +106,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
           {/* Email Login Form - Secondary Option */}
           <form onSubmit={handleEmailLogin} className="email-form">
-            <input 
-              type="email" 
-              placeholder="Email address" 
+            <input
+              type="email"
+              placeholder="Email address"
               className="input-field"
               required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={isLoading}
             />
-            <input 
-              type="password" 
-              placeholder="Password" 
+            <input
+              type="password"
+              placeholder="Password"
               className="input-field"
               required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoading}
             />
-            <button type="submit" className="submit-button">
-              Sign In with Email
+            <button type="submit" className="submit-button" disabled={isLoading}>
+              {isLoading ? 'Signing in...' : 'Sign In with Email'}
             </button>
           </form>
 

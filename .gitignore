@@ -27,7 +27,6 @@ coverage/
 *.lcov
 
 # Build output
-dist/
 build/
 .cache/
 .next/
@@ -66,7 +65,6 @@ venv.bak/
 # Distribution / packaging
 build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
