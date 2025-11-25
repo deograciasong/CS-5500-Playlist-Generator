@@ -3,10 +3,12 @@ import type { CookieOptions, Response } from "express";
 const DEFAULT_ALPHABET =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
+const cookieSecure = process.env.COOKIE_SECURE !== "false";
+
 export const secureCookieDefaults: CookieOptions = {
   httpOnly: true,
-  secure: true,
-  sameSite: "lax",
+  secure: cookieSecure,
+  sameSite: cookieSecure ? "none" : "lax",
 };
 
 export interface SpotifyCookiePayload {

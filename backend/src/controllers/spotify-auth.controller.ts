@@ -24,11 +24,13 @@ const appRedirect = process.env.APP_REDIRECT_AFTER_LOGIN ?? "/";
 const scope =
   "user-read-email user-read-private playlist-modify-public playlist-modify-private";
 
-/** Cookie presets: httpOnly+secure; SameSite=Lax works for most same-site flows. */
+const cookieSecure = process.env.COOKIE_SECURE !== "false";
+
+/** Cookie presets: toggles secure based on env (secure required for cross-site). */
 const baseCookie: CookieOptions = {
   httpOnly: true,
-  secure: true,
-  sameSite: "lax",
+  secure: cookieSecure,
+  sameSite: cookieSecure ? "none" : "lax",
 };
 
 /** Generate CSRF state for /authorize */
@@ -46,6 +48,7 @@ function randomState(len = 16): string {
  */
 export const login = (req: Request, res: Response) => {
   const codeChallenge = req.query.code_challenge as string | undefined;
+  const codeVerifier = req.query.code_verifier as string | undefined;
   if (!codeChallenge) {
     res.status(400).json({ error: "missing_code_challenge" });
     return;
@@ -56,6 +59,13 @@ export const login = (req: Request, res: Response) => {
     ...baseCookie,
     maxAge: 10 * 60 * 1000, // 10 minutes
   });
+
+  if (codeVerifier) {
+    res.cookie("spotify_code_verifier", codeVerifier, {
+      ...baseCookie,
+      maxAge: 10 * 60 * 1000,
+    });
+  }
 
   const url = new URL(AUTH_URL);
   url.searchParams.set("client_id", clientId);
@@ -78,7 +88,8 @@ export const callback = async (req: Request, res: Response) => {
   const state = req.query.state as string | undefined;
   const codeVerifier =
     (req.query.code_verifier as string | undefined) ??
-    (req.body?.code_verifier as string | undefined);
+    (req.body?.code_verifier as string | undefined) ??
+    (req.cookies?.spotify_code_verifier as string | undefined);
 
   if (!code || !state || !codeVerifier) {
     res.status(400).json({
@@ -95,6 +106,7 @@ export const callback = async (req: Request, res: Response) => {
     return;
   }
   res.clearCookie("spotify_auth_state", baseCookie);
+  res.clearCookie("spotify_code_verifier", baseCookie);
 
   // Runtime narrow helper
   const isToken = (
@@ -148,7 +160,11 @@ export const callback = async (req: Request, res: Response) => {
       res.cookie("spotify_refresh_token", refresh_token, baseCookie);
     }
 
-    res.redirect(appRedirect);
+    const redirectTarget = typeof req.query.redirect === "string"
+      ? req.query.redirect
+      : appRedirect;
+
+    res.redirect(redirectTarget);
   } catch (err: any) {
     if (axios.isAxiosError(err)) {
       if (err.response) {

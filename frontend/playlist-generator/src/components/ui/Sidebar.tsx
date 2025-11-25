@@ -62,23 +62,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
               marginBottom: '10px',
               textAlign: 'center'
             }}>
-              <div style={{ 
-                width: '40px', 
-                height: '40px', 
-                background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 8px',
-                fontWeight: 'bold',
-                fontSize: '18px'
-              }}>
-                {user?.displayName?.charAt(0).toUpperCase() || 'U'}
-              </div>
-              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px' }}>
-                {user?.displayName || 'User'}
-              </div>
+              {(() => {
+                const name = user?.displayName ?? user?.display_name ?? 'User';
+                const initial = name.charAt(0).toUpperCase();
+                return (
+                  <>
+                    <div style={{ 
+                      width: '40px', 
+                      height: '40px', 
+                      background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 8px',
+                      fontWeight: 'bold',
+                      fontSize: '18px'
+                    }}>
+                      {initial}
+                    </div>
+                    <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px' }}>
+                      {name}
+                    </div>
+                  </>
+                );
+              })()}
               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>
                 Premium
               </div>
