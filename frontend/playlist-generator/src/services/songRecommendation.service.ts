@@ -1,124 +1,158 @@
-import type { Song, MoodProfile, PlaylistResult } from '../types/song.types';
-import { MoodAnalyzer } from '../services/mood.service';
+import type { Song, MoodProfile } from '../types/song.types';
 
-export class SongRecommendationService {
-  private songs: Song[] = [];
+/**
+ * Checks if a value is within a given range
+ */
+function isInRange(value: number, range: [number, number] | undefined): boolean {
+  if (!range) return true;
+  return value >= range[0] && value <= range[1];
+}
 
-  constructor(songs: Song[]) {
-    this.songs = songs;
+/**
+ * Calculates how well a song matches the mood profile (0-1 score)
+ */
+function calculateMatchScore(song: Song, profile: MoodProfile): number {
+  let score = 0;
+  let factors = 0;
+  
+  // Valence (happiness) - most important
+  if (profile.valence) {
+    const valenceMid = (profile.valence[0] + profile.valence[1]) / 2;
+    const valenceScore = 1 - Math.abs(song.valence - valenceMid);
+    score += valenceScore * 2; // Weight valence more
+    factors += 2;
   }
+  
+  // Energy
+  if (profile.energy) {
+    const energyMid = (profile.energy[0] + profile.energy[1]) / 2;
+    const energyScore = 1 - Math.abs(song.energy - energyMid);
+    score += energyScore * 1.5; // Weight energy
+    factors += 1.5;
+  }
+  
+  // Danceability
+  if (profile.danceability) {
+    const danceMid = (profile.danceability[0] + profile.danceability[1]) / 2;
+    const danceScore = 1 - Math.abs(song.danceability - danceMid);
+    score += danceScore;
+    factors += 1;
+  }
+  
+  // Acousticness
+  if (profile.acousticness) {
+    const acousticMid = (profile.acousticness[0] + profile.acousticness[1]) / 2;
+    const acousticScore = 1 - Math.abs(song.acousticness - acousticMid);
+    score += acousticScore;
+    factors += 1;
+  }
+  
+  // Instrumentalness
+  if (profile.instrumentalness) {
+    const instrumentalMid = (profile.instrumentalness[0] + profile.instrumentalness[1]) / 2;
+    const instrumentalScore = 1 - Math.abs(song.instrumentalness - instrumentalMid);
+    score += instrumentalScore;
+    factors += 1;
+  }
+  
+  // Tempo
+  if (profile.tempo && song.tempo) {
+    const tempoMid = (profile.tempo[0] + profile.tempo[1]) / 2;
+    const tempoRange = profile.tempo[1] - profile.tempo[0];
+    const tempoScore = Math.max(0, 1 - Math.abs(song.tempo - tempoMid) / tempoRange);
+    score += tempoScore;
+    factors += 1;
+  }
+  
+  return factors > 0 ? score / factors : 0;
+}
 
-  /**
-   * Generates a playlist based on user mood input
-   */
-  generatePlaylist(
-    moodInput: string,
-    playlistSize: number = 20
-  ): PlaylistResult {
-    const moodProfile = MoodAnalyzer.analyzeMood(moodInput);
-    const matchedSongs = this.filterSongsByMood(moodProfile);
-    const selectedSongs = this.selectTopSongs(matchedSongs, playlistSize);
+/**
+ * Filters songs based on mood profile and returns top matches
+ */
+export function filterSongsByMood(
+  songs: Song[],
+  profile: MoodProfile,
+  limit: number = 20
+): Song[] {
+  console.log(`Filtering ${songs.length} songs for mood: ${profile.name}`);
+  
+  // Step 1: Filter songs that meet the basic criteria
+  const matchingSongs = songs.filter(song => {
+    // Must match valence range
+    if (!isInRange(song.valence, profile.valence)) return false;
     
-    return {
-      mood: moodProfile.name,
-      songs: selectedSongs,
-      description: MoodAnalyzer.generateDescription(moodProfile, moodInput),
-    };
-  }
-
-  /**
-   * Filters songs based on mood profile criteria
-   */
-  private filterSongsByMood(profile: MoodProfile): Song[] {
-    return this.songs.filter(song => {
-      // Check valence (happiness)
-      if (!this.isInRange(song.valence, profile.valence)) {
-        return false;
-      }
-
-      // Check energy
-      if (!this.isInRange(song.energy, profile.energy)) {
-        return false;
-      }
-
-      // Check optional criteria
-      if (profile.danceability && !this.isInRange(song.danceability, profile.danceability)) {
-        return false;
-      }
-
-      if (profile.acousticness && !this.isInRange(song.acousticness, profile.acousticness)) {
-        return false;
-      }
-
-      if (profile.tempo && !this.isInRange(song.tempo, profile.tempo)) {
-        return false;
-      }
-
-      if (profile.instrumentalness && !this.isInRange(song.instrumentalness, profile.instrumentalness)) {
-        return false;
-      }
-
-      return true;
-    });
-  }
-
-  /**
-   * Checks if a value is within a specified range
-   */
-  private isInRange(value: number, range: [number, number]): boolean {
-    return value >= range[0] && value <= range[1];
-  }
-
-  /**
-   * Selects top songs based on popularity and variety
-   */
-  private selectTopSongs(songs: Song[], count: number): Song[] {
-    if (songs.length === 0) {
-      return [];
+    // Must match energy range
+    if (!isInRange(song.energy, profile.energy)) return false;
+    
+    // Check optional criteria
+    if (profile.danceability && !isInRange(song.danceability, profile.danceability)) {
+      return false;
     }
-
-    // Sort by popularity and get diverse genres
-    const sortedByPopularity = [...songs].sort((a, b) => b.popularity - a.popularity);
     
-    // Try to get variety in genres
-    const selectedSongs: Song[] = [];
-    const genreCount = new Map<string, number>();
-    const maxPerGenre = Math.ceil(count / 5); // Max 20% from same genre
-
-    for (const song of sortedByPopularity) {
-      if (selectedSongs.length >= count) break;
-
-      const genreCounter = genreCount.get(song.track_genre) || 0;
-      if (genreCounter < maxPerGenre) {
+    if (profile.acousticness && !isInRange(song.acousticness, profile.acousticness)) {
+      return false;
+    }
+    
+    if (profile.instrumentalness && !isInRange(song.instrumentalness, profile.instrumentalness)) {
+      return false;
+    }
+    
+    if (profile.tempo && song.tempo && !isInRange(song.tempo, profile.tempo)) {
+      return false;
+    }
+    
+    if (profile.loudness && song.loudness && !isInRange(song.loudness, profile.loudness)) {
+      return false;
+    }
+    
+    return true;
+  });
+  
+  console.log(`Found ${matchingSongs.length} matching songs`);
+  
+  if (matchingSongs.length === 0) {
+    return [];
+  }
+  
+  // Step 2: Calculate match scores for all matching songs
+  const songsWithScores = matchingSongs.map(song => ({
+    song,
+    score: calculateMatchScore(song, profile),
+  }));
+  
+  // Step 3: Sort by score (highest first)
+  songsWithScores.sort((a, b) => b.score - a.score);
+  
+  // Step 4: Ensure genre diversity
+  const selectedSongs: Song[] = [];
+  const genreCounts: Record<string, number> = {};
+  const maxPerGenre = Math.ceil(limit * 0.2); // Max 20% from same genre
+  
+  for (const { song } of songsWithScores) {
+    if (selectedSongs.length >= limit) break;
+    
+    const genre = song.track_genre || 'unknown';
+    const genreCount = genreCounts[genre] || 0;
+    
+    // Add song if we haven't hit genre limit or if we're running out of options
+    if (genreCount < maxPerGenre || selectedSongs.length >= limit * 0.7) {
+      selectedSongs.push(song);
+      genreCounts[genre] = genreCount + 1;
+    }
+  }
+  
+  // Step 5: If we still need more songs, add the best remaining ones
+  if (selectedSongs.length < limit) {
+    for (const { song } of songsWithScores) {
+      if (selectedSongs.length >= limit) break;
+      if (!selectedSongs.includes(song)) {
         selectedSongs.push(song);
-        genreCount.set(song.track_genre, genreCounter + 1);
       }
     }
-
-    // If we still need more songs, fill with remaining popular tracks
-    if (selectedSongs.length < count) {
-      for (const song of sortedByPopularity) {
-        if (selectedSongs.length >= count) break;
-        if (!selectedSongs.find(s => s.track_id === song.track_id)) {
-          selectedSongs.push(song);
-        }
-      }
-    }
-
-    return selectedSongs.slice(0, count);
   }
-
-  /**
-   * Gets song statistics for debugging
-   */
-  getStats(): {
-    totalSongs: number;
-    genres: string[];
-  } {
-    const genres = new Set(this.songs.map(s => s.track_genre));
-    return {
-      totalSongs: this.songs.length,
-      genres: Array.from(genres),
-    };
-  }
+  
+  console.log(`Selected ${selectedSongs.length} songs for playlist`);
+  
+  return selectedSongs.slice(0, limit);
 }

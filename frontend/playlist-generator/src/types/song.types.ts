@@ -27,6 +27,7 @@ export interface MoodProfile {
   energy: [number, number]; // intensity
   danceability?: [number, number];
   acousticness?: [number, number];
+  loudness?:[number,number];
   tempo?: [number, number];
   instrumentalness?: [number, number];
 }

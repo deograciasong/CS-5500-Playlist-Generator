@@ -110,7 +110,6 @@ export const Playlist: React.FC = () => {
           ← Back to Dashboard
         </button>
         
-        {/* Top Section - From Option 2 */}
         <div className="playlist-header-section">
           <div className="playlist-icon-large">🎵</div>
           <div className="playlist-header-info">
@@ -155,7 +154,7 @@ export const Playlist: React.FC = () => {
           </div>
         )}
 
-        {/* Song List - From Option 1 */}
+        {/* Song List */}
         <div className="playlist-songs-container">
           <div className="playlist-songs-list">
             {playlist.songs.map((song, index) => (

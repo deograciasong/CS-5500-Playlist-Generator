@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../../components/ui/Sidebar';
-import { SongRecommendationService } from '../../services/songRecommendation.service';
+import { analyzeMood } from '../../services/mood.service';
+import { filterSongsByMood } from '../../services/songRecommendation.service';
 import type { User } from '../../types';
 import type { Song } from '../../types/song.types';
 import '../../main.css';
@@ -11,8 +12,7 @@ const toolTabs = [
   '🎵 AI Playlist',
   '⚡ Quick Vibe',
   '🎹 Mood Mix',
-  '🔀 Blend',
-  '📻 Radio',
+
 ];
 
 const examplePrompts = [
@@ -27,14 +27,15 @@ export const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState(1);
   const [moodInput, setMoodInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [recommendationService, setRecommendationService] = useState<SongRecommendationService | null>(null);
+  const [songs, setSongs] = useState<Song[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     loadSongsData();
   }, []);
 
-  const loadSongsData = async () => {
+const loadSongsData = async () => {
     try {
       // Load the songs dataset
       const response = await fetch('/data/spotify_songs.json');
@@ -43,11 +44,10 @@ export const Dashboard: React.FC = () => {
         throw new Error('Failed to load songs dataset');
       }
 
-      const songs: Song[] = await response.json();
-      const service = new SongRecommendationService(songs);
-      setRecommendationService(service);
+      const songsData: Song[] = await response.json();
+      setSongs(songsData);
       
-      console.log('Loaded songs:', service.getStats());
+      console.log(`Loaded ${songsData.length} songs from dataset`);
     } catch (error) {
       console.error('Error loading songs:', error);
       setError('Failed to load music library. Please check if the dataset is available.');
@@ -65,7 +65,7 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
-    if (!recommendationService) {
+    if (songs.length === 0) {
       setError('Music library is still loading. Please wait...');
       return;
     }
@@ -73,22 +73,38 @@ export const Dashboard: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    try {
-      // Simulate a slight delay for better UX
-      await new Promise(resolve => setTimeout(resolve, 500));
+     try {
+      console.log('Analyzing mood from input:', moodInput);
       
-      const playlist = recommendationService.generatePlaylist(moodInput, 20);
+      // Step 1: Analyze the mood from user's input
+      const moodProfile = analyzeMood(moodInput);
+      console.log('Mood profile:', moodProfile);
       
-      if (playlist.songs.length === 0) {
+      // Step 2: Filter songs based on the mood profile
+      const playlistSongs = filterSongsByMood(songs, moodProfile, 20);
+      console.log(`Generated playlist with ${playlistSongs.length} songs`);
+      
+      if (playlistSongs.length === 0) {
         setError('No songs found matching your mood. Try a different description!');
-      } else {
-        // Navigate to playlist page with the generated playlist data
-        navigate('/playlist', { state: { playlist } });
+        setLoading(false);
+        return;
       }
+
+      // Step 3: Create playlist object
+      const playlist = {
+        mood: moodProfile.name,
+        songs: playlistSongs,
+        description: moodInput
+      };
+      
+      // Step 4: Navigate to playlist page with the generated playlist
+      setTimeout(() => {
+        navigate('/playlist', { state: { playlist } });
+      }, 500);
+      
     } catch (error) {
       console.error('Error generating playlist:', error);
       setError('Failed to generate playlist. Please try again.');
-    } finally {
       setLoading(false);
     }
   };
@@ -155,7 +171,7 @@ Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studyin
             <button 
               className="send-button" 
               onClick={handleGenerate}
-              disabled={loading || !recommendationService}
+              disabled={loading || songs.length === 0}
             >
               {loading ? (
                 <div className="spinner"></div>
