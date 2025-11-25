@@ -27,7 +27,6 @@ coverage/
 *.lcov
 
 # Build output
-dist/
 build/
 .cache/
 .next/
