@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from '../../components/ui/Sidebar';
-import { playlistStorage } from '../../services/playliststorage.service';
+import { playlistStorage } from '../../services/playlistStorage.service';
 import type { PlaylistResult } from '../../types/song.types';
 import '../../main.css';
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../../components/ui/Sidebar';
-import { playlistStorage, SavedPlaylist } from '../../services/playliststorage.service';
+import { playlistStorage, SavedPlaylist } from '../../services/playlistStorage.service';
 import '../../main.css';
 
 export const Library: React.FC = () => {
