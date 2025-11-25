@@ -5,6 +5,7 @@
  * - GET  /auth/callback  → exchanges code+verifier, stores tokens in httpOnly cookies, redirects app
  * - POST /auth/refresh   → uses refresh token cookie to get new access token, updates cookies
  */
+import "../config/env.js";
 import type { Request, Response } from "express";
 /**
  * GET /auth/login

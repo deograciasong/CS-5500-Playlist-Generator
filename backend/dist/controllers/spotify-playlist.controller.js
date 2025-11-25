@@ -10,6 +10,7 @@ import { SpotifyApiError, createSpotifyApiClient, } from "../lib/spotify-api.js"
 import { createSpotifyTokenManager } from "./helpers/spotify-token-manager.js";
 import { isNonEmptyString } from "../lib/validation.js";
 import { addItemsToPlaylist, createPlaylist, reorderPlaylistItems, replacePlaylistItems, } from "../services/spotify-playlist.service.js";
+import { fetchCurrentUserProfile } from "../services/spotify-user.service.js";
 /** Builds a Spotify API client using the token manager from the request and response. */
 function buildSpotifyClient(req, res) {
     return createSpotifyApiClient(createSpotifyTokenManager(req, res));
@@ -33,11 +34,6 @@ function handleSpotifyError(res, error) {
 /** Creates a new playlist for the user. */
 export const createPlaylistForUser = async (req, res) => {
     const payload = req.body;
-    const userId = payload?.userId;
-    if (!isNonEmptyString(userId)) {
-        res.status(400).json({ error: "invalid_user_id" });
-        return;
-    }
     const name = payload?.name;
     if (!isNonEmptyString(name)) {
         res.status(400).json({ error: "invalid_playlist_name" });
@@ -45,7 +41,13 @@ export const createPlaylistForUser = async (req, res) => {
     }
     try {
         const api = buildSpotifyClient(req, res);
-        const playlist = await createPlaylist(api, userId, {
+        // If userId not provided, fetch the current user profile from Spotify
+        let targetUserId = payload?.userId;
+        if (!isNonEmptyString(targetUserId)) {
+            const profile = await fetchCurrentUserProfile(api);
+            targetUserId = profile.id;
+        }
+        const playlist = await createPlaylist(api, targetUserId, {
             name,
             ...(payload.description ? { description: payload.description } : {}),
             ...(typeof payload.public === "boolean" ? { public: payload.public } : {}),

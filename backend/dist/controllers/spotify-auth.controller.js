@@ -5,6 +5,7 @@
  * - GET  /auth/callback  → exchanges code+verifier, stores tokens in httpOnly cookies, redirects app
  * - POST /auth/refresh   → uses refresh token cookie to get new access token, updates cookies
  */
+import "../config/env.js";
 import { exchangeCodeForToken, refreshToken as refreshAccessToken, } from "../services/spotify-auth.service.js";
 import axios from "axios";
 const AUTH_URL = "https://accounts.spotify.com/authorize";
@@ -12,11 +13,12 @@ const clientId = process.env.SPOTIFY_CLIENT_ID;
 const redirectUri = process.env.SPOTIFY_REDIRECT_URI;
 const appRedirect = process.env.APP_REDIRECT_AFTER_LOGIN ?? "/";
 const scope = "user-read-email user-read-private playlist-modify-public playlist-modify-private";
-/** Cookie presets: httpOnly+secure; SameSite=Lax works for most same-site flows. */
+const cookieSecure = process.env.COOKIE_SECURE !== "false";
+/** Cookie presets: toggles secure based on env (secure required for cross-site). */
 const baseCookie = {
     httpOnly: true,
-    secure: true,
-    sameSite: "lax",
+    secure: cookieSecure,
+    sameSite: cookieSecure ? "none" : "lax",
 };
 /** Generate CSRF state for /authorize */
 function randomState(len = 16) {
@@ -32,6 +34,7 @@ function randomState(len = 16) {
  */
 export const login = (req, res) => {
     const codeChallenge = req.query.code_challenge;
+    const codeVerifier = req.query.code_verifier;
     if (!codeChallenge) {
         res.status(400).json({ error: "missing_code_challenge" });
         return;
@@ -41,6 +44,12 @@ export const login = (req, res) => {
         ...baseCookie,
         maxAge: 10 * 60 * 1000, // 10 minutes
     });
+    if (codeVerifier) {
+        res.cookie("spotify_code_verifier", codeVerifier, {
+            ...baseCookie,
+            maxAge: 10 * 60 * 1000,
+        });
+    }
     const url = new URL(AUTH_URL);
     url.searchParams.set("client_id", clientId);
     url.searchParams.set("response_type", "code");
@@ -59,7 +68,8 @@ export const callback = async (req, res) => {
     const code = req.query.code;
     const state = req.query.state;
     const codeVerifier = req.query.code_verifier ??
-        req.body?.code_verifier;
+        req.body?.code_verifier ??
+        req.cookies?.spotify_code_verifier;
     if (!code || !state || !codeVerifier) {
         res.status(400).json({
             error: "missing_params",
@@ -74,6 +84,7 @@ export const callback = async (req, res) => {
         return;
     }
     res.clearCookie("spotify_auth_state", baseCookie);
+    res.clearCookie("spotify_code_verifier", baseCookie);
     // Runtime narrow helper
     const isToken = (body) => body && typeof body.access_token === "string";
     try {
@@ -114,7 +125,10 @@ export const callback = async (req, res) => {
         if (refresh_token) {
             res.cookie("spotify_refresh_token", refresh_token, baseCookie);
         }
-        res.redirect(appRedirect);
+        const redirectTarget = typeof req.query.redirect === "string"
+            ? req.query.redirect
+            : appRedirect;
+        res.redirect(redirectTarget);
     }
     catch (err) {
         if (axios.isAxiosError(err)) {

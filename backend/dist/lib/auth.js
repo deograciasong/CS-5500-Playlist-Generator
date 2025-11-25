@@ -1,8 +1,9 @@
 const DEFAULT_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const cookieSecure = process.env.COOKIE_SECURE !== "false";
 export const secureCookieDefaults = {
     httpOnly: true,
-    secure: true,
-    sameSite: "lax",
+    secure: cookieSecure,
+    sameSite: cookieSecure ? "none" : "lax",
 };
 /**
  * Generates a random token suitable for OAuth state parameters.
