@@ -65,22 +65,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {(() => {
                 const name = user?.displayName ?? user?.display_name ?? 'User';
                 const initial = name.charAt(0).toUpperCase();
+                const imageUrl = user?.profileImage ?? user?.images?.[0]?.url ?? user?.image ?? null;
+
                 return (
                   <>
-                    <div style={{ 
-                      width: '40px', 
-                      height: '40px', 
-                      background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      margin: '0 auto 8px',
-                      fontWeight: 'bold',
-                      fontSize: '18px'
-                    }}>
-                      {initial}
-                    </div>
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt={name}
+                        style={{
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '50%',
+                          display: 'block',
+                          objectFit: 'cover',
+                          margin: '0 auto 8px'
+                        }}
+                      />
+                    ) : (
+                      <div style={{ 
+                        width: '40px', 
+                        height: '40px', 
+                        background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 8px',
+                        fontWeight: 'bold',
+                        fontSize: '18px'
+                      }}>
+                        {initial}
+                      </div>
+                    )}
+
                     <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px' }}>
                       {name}
                     </div>
