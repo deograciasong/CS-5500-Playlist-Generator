@@ -12,7 +12,6 @@ const toolTabs = [
   '🎵 AI Playlist',
   '⚡ Quick Vibe',
   '🎹 Mood Mix',
-
 ];
 
 const examplePrompts = [
@@ -20,6 +19,18 @@ const examplePrompts = [
   'Energetic workout mix with high tempo, motivating vibes for gym time',
   'Melancholic indie playlist for rainy days, soft vocals and acoustic guitars',
 ];
+
+// Helper function to remove duplicate songs
+const getUniqueSongs = (songs: Song[]) => {
+  const seen = new Set<string>();
+  return songs.filter(song => {
+    if (seen.has(song.track_id)) {
+      return false;
+    }
+    seen.add(song.track_id);
+    return true;
+  });
+};
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -35,7 +46,7 @@ export const Dashboard: React.FC = () => {
     loadSongsData();
   }, []);
 
-const loadSongsData = async () => {
+  const loadSongsData = async () => {
     try {
       // Load the songs dataset
       const response = await fetch('/data/spotify_songs.json');
@@ -73,7 +84,7 @@ const loadSongsData = async () => {
     setLoading(true);
     setError(null);
 
-     try {
+    try {
       console.log('Analyzing mood from input:', moodInput);
       
       // Step 1: Analyze the mood from user's input
@@ -82,9 +93,12 @@ const loadSongsData = async () => {
       
       // Step 2: Filter songs based on the mood profile
       const playlistSongs = filterSongsByMood(songs, moodProfile, 20);
-      console.log(`Generated playlist with ${playlistSongs.length} songs`);
       
-      if (playlistSongs.length === 0) {
+      // Step 2.5: Remove duplicates
+      const uniquePlaylistSongs = getUniqueSongs(playlistSongs);
+      console.log(`Generated playlist with ${uniquePlaylistSongs.length} unique songs`);
+      
+      if (uniquePlaylistSongs.length === 0) {
         setError('No songs found matching your mood. Try a different description!');
         setLoading(false);
         return;
@@ -93,7 +107,7 @@ const loadSongsData = async () => {
       // Step 3: Create playlist object
       const playlist = {
         mood: moodProfile.name,
-        songs: playlistSongs,
+        songs: uniquePlaylistSongs,
         description: moodInput
       };
       
@@ -200,8 +214,6 @@ Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studyin
           ))}
         </div>
       </div>
-
-     
     </>
   );
 };

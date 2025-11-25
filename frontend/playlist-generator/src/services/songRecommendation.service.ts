@@ -124,13 +124,17 @@ export function filterSongsByMood(
   // Step 3: Sort by score (highest first)
   songsWithScores.sort((a, b) => b.score - a.score);
   
-  // Step 4: Ensure genre diversity
+  // Step 4: Ensure genre diversity and prevent duplicates
   const selectedSongs: Song[] = [];
+  const addedTrackIds = new Set<string>(); // Track which songs we've added
   const genreCounts: Record<string, number> = {};
   const maxPerGenre = Math.ceil(limit * 0.2); // Max 20% from same genre
   
   for (const { song } of songsWithScores) {
     if (selectedSongs.length >= limit) break;
+    
+    // Skip if we've already added this track
+    if (addedTrackIds.has(song.track_id)) continue;
     
     const genre = song.track_genre || 'unknown';
     const genreCount = genreCounts[genre] || 0;
@@ -138,6 +142,7 @@ export function filterSongsByMood(
     // Add song if we haven't hit genre limit or if we're running out of options
     if (genreCount < maxPerGenre || selectedSongs.length >= limit * 0.7) {
       selectedSongs.push(song);
+      addedTrackIds.add(song.track_id);
       genreCounts[genre] = genreCount + 1;
     }
   }
@@ -146,13 +151,16 @@ export function filterSongsByMood(
   if (selectedSongs.length < limit) {
     for (const { song } of songsWithScores) {
       if (selectedSongs.length >= limit) break;
-      if (!selectedSongs.includes(song)) {
-        selectedSongs.push(song);
-      }
+      
+      // Skip if we've already added this track
+      if (addedTrackIds.has(song.track_id)) continue;
+      
+      selectedSongs.push(song);
+      addedTrackIds.add(song.track_id);
     }
   }
   
-  console.log(`Selected ${selectedSongs.length} songs for playlist`);
+  console.log(`Selected ${selectedSongs.length} unique songs for playlist`);
   
   return selectedSongs.slice(0, limit);
 }
