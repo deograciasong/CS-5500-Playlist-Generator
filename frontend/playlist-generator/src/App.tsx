@@ -11,7 +11,7 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/auth/success" element={<AuthCallback />} />
-        <Route path="/signup" element={<SignupPage />} />  {}
+        <Route path="/signup" element={<SignupPage />} />  
       </Routes>
     </Router>
   );
