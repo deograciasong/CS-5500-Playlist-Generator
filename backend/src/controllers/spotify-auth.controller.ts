@@ -6,6 +6,7 @@
  * - POST /auth/refresh   → uses refresh token cookie to get new access token, updates cookies
  */
 
+import "../config/env.js";
 import type { Request, Response, CookieOptions } from "express";
 import {
   exchangeCodeForToken,

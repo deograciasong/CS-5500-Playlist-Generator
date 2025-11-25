@@ -143,7 +143,7 @@ export const Dashboard: React.FC = () => {
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    const name = user?.display_name || user?.id || 'there';
+    const name = user?.display_name || 'there';
     if (hour < 12) return `Good Morning, ${name}! 👋`;
     if (hour < 18) return `Good Afternoon, ${name}! 👋`;
     return `Good Evening, ${name}! 👋`;
