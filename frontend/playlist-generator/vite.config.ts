@@ -10,6 +10,18 @@ export default defineConfig({
     tailwindcss(),
   
   ],
+  server: {
+    // Proxy API requests to the backend during development so the browser
+    // sees the frontend origin and cookies remain same-site.
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api/, '/api')
+      }
+    }
+  },
   resolve:{
   alias:{
     "@": path.resolve(__dirname, "./src"),
