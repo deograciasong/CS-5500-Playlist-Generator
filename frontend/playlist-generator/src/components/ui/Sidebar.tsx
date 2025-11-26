@@ -10,10 +10,9 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { icon: '🏠', label: 'Home', path: '/dashboard' },
-  { icon: '✨', label: 'Generate', path: '/dashboard' },
   { icon: '📚', label: 'Library', path: '/library' },
   { icon: '📊', label: 'Analytics', path: '/analytics' },
-  { icon: '🔍', label: 'Explore', path: '/explore' },
+  // { icon: '🔍', label: 'Explore', path: '/explore' },
   { icon: '⭐', label: 'Premium', path: '/premium' },
 ];
 
