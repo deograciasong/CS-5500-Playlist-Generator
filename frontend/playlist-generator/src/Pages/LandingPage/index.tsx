@@ -19,7 +19,7 @@ export const LandingPage: React.FC = () => {
   return (
     <>
       <Background />
-      <Navbar onGetStarted={() => setAuthModalOpen(true)} />
+      <Navbar onGetStarted={() => setAuthModalOpen(true)} showAccount={false} />
 
       <div className="hero-section">
         <h1 className="hero-title">Transform Your Mood Into Music</h1>

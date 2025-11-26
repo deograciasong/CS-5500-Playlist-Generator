@@ -10,6 +10,15 @@ router.get("/login", login);
 router.get("/callback", callback);
 router.post("/refresh", refreshToken);
 
+// Update current authenticated local user
+router.put('/me', (req, res, next) => {
+	// lazy require to avoid circular imports in some TS setups
+	import('../controllers/auth-me.controller.js').then(mod => mod.updateCurrentAuthUser(req, res)).catch(next);
+});
+router.put('/me/password', (req, res, next) => {
+	import('../controllers/auth-me.controller.js').then(mod => mod.changeCurrentUserPassword(req, res)).catch(next);
+});
+
 // Local registration endpoint (creates a LocalUser)
 router.post("/register", register);
 
