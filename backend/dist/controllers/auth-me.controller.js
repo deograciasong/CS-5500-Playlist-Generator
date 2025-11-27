@@ -23,7 +23,16 @@ export const getCurrentAuthUser = async (req, res) => {
         if (!user) {
             return res.status(404).json({ error: "not_found", message: "User not found" });
         }
-        return res.json({ user: { id: user._id, name: user.name, email: user.email, displayName: user.name } });
+        return res.json({
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                displayName: user.name,
+                spotifyId: user.spotifyId ?? null,
+                spotifyProfile: user.spotifyProfile ?? null,
+            },
+        });
     }
     catch (err) {
         console.error('getCurrentAuthUser error', err);
@@ -69,7 +78,17 @@ export const updateCurrentAuthUser = async (req, res) => {
             user.email = email.trim();
         }
         await user.save();
-        return res.json({ user: { id: user._id, name: user.name, email: user.email, displayName: user.name, createdAt: user.createdAt } });
+        return res.json({
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                displayName: user.name,
+                createdAt: user.createdAt,
+                spotifyId: user.spotifyId ?? null,
+                spotifyProfile: user.spotifyProfile ?? null,
+            },
+        });
     }
     catch (err) {
         console.error('updateCurrentAuthUser error', err);

@@ -45,11 +45,10 @@ export const authService = {
     // backend to not be stored correctly by the browser. Use an absolute backend host
     // in dev so cookies (spotify_code_verifier) are set on the backend origin before
     // redirecting to Spotify.
-    const base = API_URL.startsWith('/')
-      ? (import.meta.env.VITE_BACKEND_URL || `${window.location.protocol}//127.0.0.1:5001`)
-      : API_URL.replace(/\/$/, '');
-
-    return `${base}/api/auth/login?code_challenge=${encodeURIComponent(codeChallenge)}&code_verifier=${encodeURIComponent(codeVerifier)}`;
+    // Use the app's API base so the request goes through the dev proxy (preserves cookies)
+    const base = API_URL.replace(/\/$/, '');
+    const redirect = encodeURIComponent(`${window.location.origin}/account`);
+    return `${base}/auth/login?code_challenge=${encodeURIComponent(codeChallenge)}&code_verifier=${encodeURIComponent(codeVerifier)}&redirect=${redirect}`;
   },
 
   getCurrentUser: async (): Promise<SpotifyUserProfile | User> => {

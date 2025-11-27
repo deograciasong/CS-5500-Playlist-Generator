@@ -12,7 +12,7 @@ const AccountSettings: React.FC = () => {
 
   useEffect(() => {
     let mounted = true;
-    const load = async () => {
+    const loadUser = async () => {
       try {
         const u = await authService.getCurrentUser();
         if (mounted) setUser(u as User);
@@ -23,8 +23,34 @@ const AccountSettings: React.FC = () => {
         if (mounted) setLoading(false);
       }
     };
-    load();
-    return () => { mounted = false; };
+
+    loadUser();
+
+    // Re-fetch when the page becomes visible or when the window regains focus
+    const onFocus = () => { loadUser(); };
+    const onVisibility = () => { if (document.visibilityState === 'visible') loadUser(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
+
+  // If redirected back from Spotify callback with quick params, apply them immediately
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('spotify_linked') === '1') {
+      const sid = params.get('spotify_id');
+      const sname = params.get('spotify_name');
+      setUser((prev) => ({ ...(prev as any), spotifyId: sid ?? (prev as any)?.spotifyId, spotifyProfile: { id: sid, display_name: sname } } as User));
+      // remove the params from the URL to keep things tidy
+      const url = new URL(window.location.href);
+      url.search = '';
+      window.history.replaceState({}, document.title, url.toString());
+    }
   }, []);
 
   const handleLogout = async () => {
@@ -73,6 +99,17 @@ const AccountSettings: React.FC = () => {
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
+  };
+
+  const handleLinkSpotify = async () => {
+    try {
+      const url = await authService.startSpotifyLogin();
+      // navigate browser to backend spotify login which will initiate PKCE and redirect to Spotify
+      window.location.href = url;
+    } catch (err: any) {
+      console.error('Failed to start Spotify linking', err);
+      setError(err?.message ?? 'Failed to start Spotify linking');
+    }
   };
 
   const cancelChangePassword = () => {
@@ -134,16 +171,51 @@ const AccountSettings: React.FC = () => {
                   <div className="user-avatar" style={{ width: 96, height: 96, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>{initial}</div>
                 )}
 
-                <div style={{ flex: 1 }}>
-                  <h3 style={{ margin: 0 }}>{name}</h3>
-                  <div className="text-muted" style={{ marginTop: 6 }}>{user.email}</div>
-                  <div style={{ marginTop: 12 }} className="text-muted">Member since: {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Unknown'}</div>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{ margin: 0 }}>{name}</h3>
+                      <div className="text-muted" style={{ marginTop: 6 }}>{user.email}</div>
+                      <div style={{ marginTop: 8 }}>
+                        {(() => {
+                          const spotifyProfile = (user as any)?.spotifyProfile;
+                          const spotifyId = (user as any)?.spotifyId;
+                          if (spotifyId && spotifyProfile) {
+                            const spImage = spotifyProfile.images?.[0]?.url ?? null;
+                            return (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                {spImage ? (
+                                  <img src={spImage} alt="spotify avatar" style={{ width: 32, height: 32, borderRadius: 16 }} />
+                                ) : (
+                                  <div style={{ width: 32, height: 32, borderRadius: 16, background: '#1db954', display: 'inline-block' }} />
+                                )}
+                                <div style={{ fontSize: 13 }}><strong>Spotify:</strong> {spotifyProfile.display_name ?? spotifyProfile.id}</div>
+                              </div>
+                            );
+                          }
+                          return <div className="text-muted">Spotify: Not linked</div>;
+                        })()}
+                      </div>
+                      <div style={{ marginTop: 12 }} className="text-muted">Member since: {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Unknown'}</div>
 
                   <div style={{ marginTop: 18, display: 'flex', gap: 8, alignItems: 'center' }}>
                     {!isEditing ? (
                       <>
                         <button className="btn-secondary" onClick={startEdit}>Edit Profile</button>
                         <button className="btn-secondary" onClick={startChangePassword}>Change Password</button>
+                        {!(user as any)?.spotifyId && (
+                          <button className="btn-primary" onClick={handleLinkSpotify} style={{ marginLeft: 8 }}>Link Spotify</button>
+                        )}
+                        <button className="btn-secondary" onClick={async () => {
+                          setLoading(true);
+                          try {
+                            const u = await authService.getCurrentUser();
+                            setUser(u as User);
+                          } catch (err: any) {
+                            console.error('Refresh failed', err);
+                            setError(err?.message ?? String(err));
+                          } finally {
+                            setLoading(false);
+                          }
+                        }} style={{ marginLeft: 8 }}>Refresh</button>
                       </>
                     ) : (
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

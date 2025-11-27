@@ -8,6 +8,10 @@
 import "../config/env.js";
 import { exchangeCodeForToken, refreshToken as refreshAccessToken, } from "../services/spotify-auth.service.js";
 import axios from "axios";
+import jwt from "jsonwebtoken";
+import LocalUser from "../models/LocalUser.js";
+import bcrypt from "bcryptjs";
+const JWT_SECRET = process.env.JWT_SECRET ?? "dev-jwt-secret";
 const AUTH_URL = "https://accounts.spotify.com/authorize";
 const clientId = process.env.SPOTIFY_CLIENT_ID;
 const redirectUri = process.env.SPOTIFY_REDIRECT_URI;
@@ -39,7 +43,9 @@ export const login = (req, res) => {
         res.status(400).json({ error: "missing_code_challenge" });
         return;
     }
-    const state = randomState(20);
+    const rawState = randomState(20);
+    const reqRedirect = typeof req.query.redirect === 'string' ? req.query.redirect : undefined;
+    const state = reqRedirect ? `${rawState}|${encodeURIComponent(reqRedirect)}` : rawState;
     res.cookie("spotify_auth_state", state, {
         ...baseCookie,
         maxAge: 10 * 60 * 1000, // 10 minutes
@@ -125,10 +131,119 @@ export const callback = async (req, res) => {
         if (refresh_token) {
             res.cookie("spotify_refresh_token", refresh_token, baseCookie);
         }
-        const redirectTarget = typeof req.query.redirect === "string"
-            ? req.query.redirect
-            : appRedirect;
-        res.redirect(redirectTarget);
+        // Fetch Spotify profile so we can link or create a LocalUser
+        try {
+            const profileRes = await axios.get("https://api.spotify.com/v1/me", {
+                headers: { Authorization: `Bearer ${access_token}` },
+            });
+            const profile = profileRes.data;
+            const spotifyId = profile?.id;
+            // Attempt to link to an authenticated local user (if present)
+            const authToken = req.cookies?.auth_token || (req.headers.authorization || "").split(" ")[1];
+            if (authToken) {
+                try {
+                    const payload = jwt.verify(authToken, JWT_SECRET);
+                    const currentUserId = payload?.sub;
+                    if (currentUserId) {
+                        // Ensure this spotify account isn't already linked to another local user
+                        const already = await LocalUser.findOne({ spotifyId }).exec();
+                        if (already && String(already._id) !== String(currentUserId)) {
+                            // conflict: spotify account linked elsewhere
+                            return res.status(409).json({ error: "spotify_already_linked", message: "This Spotify account is already linked to another user" });
+                        }
+                        const user = await LocalUser.findById(currentUserId).exec();
+                        if (user) {
+                            user.spotifyId = spotifyId;
+                            user.spotifyProfile = profile;
+                            await user.save();
+                            // Re-issue JWT for the local user
+                            const payloadOut = { sub: String(user._id), email: user.email, provider: "local" };
+                            const token = jwt.sign(payloadOut, JWT_SECRET, { expiresIn: "7d" });
+                            res.cookie("auth_token", token, {
+                                httpOnly: true,
+                                secure: process.env.NODE_ENV === "production",
+                                sameSite: "lax",
+                                maxAge: 7 * 24 * 60 * 60 * 1000,
+                            });
+                            const redirectTarget = (state && state.includes('|'))
+                                ? decodeURIComponent(state.split('|').slice(1).join('|'))
+                                : (typeof req.query.redirect === "string" ? req.query.redirect : appRedirect);
+                            console.log(`Linked Spotify account ${spotifyId} to local user ${user._id}; redirecting to ${redirectTarget}`);
+                            try {
+                                const qs = `spotify_linked=1&spotify_id=${encodeURIComponent(spotifyId ?? '')}&spotify_name=${encodeURIComponent((profile?.display_name) ?? profile?.id ?? '')}`;
+                                const joiner = redirectTarget.includes('?') ? '&' : '?';
+                                return res.redirect(`${redirectTarget}${joiner}${qs}`);
+                            }
+                            catch (e) {
+                                return res.redirect(redirectTarget);
+                            }
+                        }
+                    }
+                }
+                catch (e) {
+                    // ignore token verification errors and fallthrough to unauthenticated flow
+                    console.debug("No local auth token or invalid token during spotify callback link flow");
+                }
+            }
+            // No authenticated local user — sign-in or create a LocalUser linked to this Spotify account
+            let targetUser = await LocalUser.findOne({ spotifyId }).exec();
+            if (!targetUser) {
+                // Try to find by email (if available) and link if that account is not already linked
+                const email = profile?.email;
+                if (email) {
+                    const byEmail = await LocalUser.findOne({ email }).exec();
+                    if (byEmail && !byEmail.spotifyId) {
+                        byEmail.spotifyId = spotifyId;
+                        byEmail.spotifyProfile = profile;
+                        targetUser = await byEmail.save();
+                    }
+                }
+            }
+            if (!targetUser) {
+                // Create a new local user and link spotify account. Generate a random password.
+                const randomPassword = Math.random().toString(36).slice(2, 12) + Date.now().toString(36).slice(-4);
+                const salt = await bcrypt.genSalt(10);
+                const hash = await bcrypt.hash(randomPassword, salt);
+                const newUser = await LocalUser.create({
+                    name: profile?.display_name || `Spotify User ${spotifyId}`,
+                    email: profile?.email || `spotify-${spotifyId}@local`,
+                    passwordHash: hash,
+                    spotifyId,
+                    spotifyProfile: profile,
+                });
+                targetUser = newUser;
+            }
+            // Issue JWT for the linked/created local user
+            const payloadOut = { sub: String(targetUser._id), email: targetUser.email, provider: "local" };
+            const token = jwt.sign(payloadOut, JWT_SECRET, { expiresIn: "7d" });
+            res.cookie("auth_token", token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: "lax",
+                maxAge: 7 * 24 * 60 * 60 * 1000,
+            });
+            const redirectTarget = (state && state.includes('|'))
+                ? decodeURIComponent(state.split('|').slice(1).join('|'))
+                : (typeof req.query.redirect === "string" ? req.query.redirect : appRedirect);
+            console.log(`Authenticated as local user ${targetUser._id}; redirecting to ${redirectTarget}`);
+            try {
+                const qs = `spotify_linked=1&spotify_id=${encodeURIComponent(spotifyId ?? '')}&spotify_name=${encodeURIComponent((profile?.display_name) ?? profile?.id ?? '')}`;
+                const joiner = redirectTarget.includes('?') ? '&' : '?';
+                return res.redirect(`${redirectTarget}${joiner}${qs}`);
+            }
+            catch (e) {
+                return res.redirect(redirectTarget);
+            }
+        }
+        catch (e) {
+            console.error("Failed to fetch Spotify profile or link account", e?.response?.data ?? e);
+            // Still redirect the user but surface an error in query if desired
+            const redirectTarget = (state && state.includes('|'))
+                ? decodeURIComponent(state.split('|').slice(1).join('|'))
+                : (typeof req.query.redirect === "string" ? req.query.redirect : appRedirect);
+            console.log(`Spotify callback failed to link; redirecting to ${redirectTarget}`);
+            return res.redirect(redirectTarget);
+        }
     }
     catch (err) {
         if (axios.isAxiosError(err)) {

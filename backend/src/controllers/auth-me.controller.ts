@@ -29,7 +29,16 @@ export const getCurrentAuthUser = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "not_found", message: "User not found" });
     }
 
-    return res.json({ user: { id: user._id, name: user.name, email: user.email, displayName: user.name } });
+    return res.json({
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        displayName: user.name,
+        spotifyId: (user as any).spotifyId ?? null,
+        spotifyProfile: (user as any).spotifyProfile ?? null,
+      },
+    });
   } catch (err: any) {
     console.error('getCurrentAuthUser error', err);
     return res.status(500).json({ error: 'internal_error', message: 'Failed to fetch user' });
@@ -82,7 +91,17 @@ export const updateCurrentAuthUser = async (req: Request, res: Response) => {
 
     await user.save();
 
-    return res.json({ user: { id: user._id, name: user.name, email: user.email, displayName: user.name, createdAt: user.createdAt } });
+    return res.json({
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        displayName: user.name,
+        createdAt: user.createdAt,
+        spotifyId: (user as any).spotifyId ?? null,
+        spotifyProfile: (user as any).spotifyProfile ?? null,
+      },
+    });
   } catch (err: any) {
     console.error('updateCurrentAuthUser error', err);
     return res.status(500).json({ error: 'internal_error', message: 'Failed to update user' });
