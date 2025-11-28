@@ -3,6 +3,7 @@ import { login, callback, refreshToken } from "../controllers/spotify-auth.contr
 import { register } from "../controllers/local-auth.controller.js";
 import { loginLocal } from "../controllers/local-login.controller.js";
 import { getCurrentAuthUser } from "../controllers/auth-me.controller.js";
+import { getUserByEmailOrId } from "../controllers/debug.controller.js";
 
 const router = express.Router();
 
@@ -27,5 +28,11 @@ router.post("/login-local", loginLocal);
 
 // Get current authenticated user (checks cookie or Authorization header)
 router.get('/me', getCurrentAuthUser);
+
+// Debug: fetch a LocalUser by email or id (disabled in production)
+router.get('/debug/user', (req, res, next) => {
+	// lazy import to avoid circular issues and keep behavior consistent with other routes
+	import('../controllers/debug.controller.js').then(mod => mod.getUserByEmailOrId(req, res)).catch(next);
+});
 
 export default router;

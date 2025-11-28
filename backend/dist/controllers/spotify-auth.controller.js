@@ -149,13 +149,55 @@ export const callback = async (req, res) => {
                         const already = await LocalUser.findOne({ spotifyId }).exec();
                         if (already && String(already._id) !== String(currentUserId)) {
                             // conflict: spotify account linked elsewhere
+                            // allow explicit override via `force_login=1` in query to sign in the linked user
+                            const forceLogin = (req.query && (req.query.force_login === '1' || req.query.force_login === 'true'));
+                            if (forceLogin) {
+                                console.log(`force_login provided — signing in existing user ${already._id} for Spotify ${spotifyId}`);
+                                const payloadOut = { sub: String(already._id), email: already.email, provider: "local" };
+                                const token = jwt.sign(payloadOut, JWT_SECRET, { expiresIn: "7d" });
+                                res.cookie("auth_token", token, {
+                                    httpOnly: true,
+                                    secure: process.env.NODE_ENV === "production",
+                                    sameSite: "lax",
+                                    maxAge: 7 * 24 * 60 * 60 * 1000,
+                                });
+
+                                const redirectTarget = (state && state.includes('|'))
+                                    ? decodeURIComponent(state.split('|').slice(1).join('|'))
+                                    : (typeof req.query.redirect === "string" ? req.query.redirect : appRedirect);
+                                try {
+                                    const qs = `spotify_linked=1&spotify_id=${encodeURIComponent(spotifyId ?? '')}&spotify_name=${encodeURIComponent((profile?.display_name) ?? profile?.id ?? '')}`;
+                                    const joiner = redirectTarget.includes('?') ? '&' : '?';
+                                    return res.redirect(`${redirectTarget}${joiner}${qs}`);
+                                }
+                                catch (e) {
+                                    return res.redirect(redirectTarget);
+                                }
+                            }
+
                             return res.status(409).json({ error: "spotify_already_linked", message: "This Spotify account is already linked to another user" });
                         }
                         const user = await LocalUser.findById(currentUserId).exec();
                         if (user) {
                             user.spotifyId = spotifyId;
                             user.spotifyProfile = profile;
-                            await user.save();
+                            user.spotifyLinked = true;
+                            try {
+                                await user.save();
+                                console.log(`Saved local user ${user._id} after linking Spotify ${spotifyId}`);
+                                console.log('Post-save user fields', { id: String(user._id), spotifyId: user.spotifyId, spotifyLinked: user.spotifyLinked });
+                                try {
+                                    const reloaded = await LocalUser.findById(user._id).lean().exec();
+                                    console.log('DB read immediately after save', { reloaded });
+                                }
+                                catch (reErr) {
+                                    console.error('Failed to re-query user after save', { userId: user._id, err: reErr });
+                                }
+                            }
+                            catch (saveErr) {
+                                console.error('Failed to save linked local user', { userId: user._id, err: saveErr });
+                                return res.status(500).json({ error: 'db_save_failed', message: 'Failed to persist Spotify link' });
+                            }
                             // Re-issue JWT for the local user
                             const payloadOut = { sub: String(user._id), email: user.email, provider: "local" };
                             const token = jwt.sign(payloadOut, JWT_SECRET, { expiresIn: "7d" });
@@ -187,6 +229,30 @@ export const callback = async (req, res) => {
             }
             // No authenticated local user — sign-in or create a LocalUser linked to this Spotify account
             let targetUser = await LocalUser.findOne({ spotifyId }).exec();
+            if (targetUser) {
+                console.log(`Found existing LocalUser ${targetUser._id} linked to Spotify ${spotifyId}; signing in`);
+                const payloadOut = { sub: String(targetUser._id), email: targetUser.email, provider: "local" };
+                const token = jwt.sign(payloadOut, JWT_SECRET, { expiresIn: "7d" });
+                res.cookie("auth_token", token, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === "production",
+                    sameSite: "lax",
+                    maxAge: 7 * 24 * 60 * 60 * 1000,
+                });
+
+                const redirectTarget = (state && state.includes('|'))
+                    ? decodeURIComponent(state.split('|').slice(1).join('|'))
+                    : (typeof req.query.redirect === "string" ? req.query.redirect : appRedirect);
+                console.log(`Authenticated as local user ${targetUser._id}; redirecting to ${redirectTarget}`);
+                try {
+                    const qs = `spotify_linked=1&spotify_id=${encodeURIComponent(spotifyId ?? '')}&spotify_name=${encodeURIComponent((profile?.display_name) ?? profile?.id ?? '')}`;
+                    const joiner = redirectTarget.includes('?') ? '&' : '?';
+                    return res.redirect(`${redirectTarget}${joiner}${qs}`);
+                }
+                catch (e) {
+                    return res.redirect(redirectTarget);
+                }
+            }
             if (!targetUser) {
                 // Try to find by email (if available) and link if that account is not already linked
                 const email = profile?.email;
@@ -195,7 +261,23 @@ export const callback = async (req, res) => {
                     if (byEmail && !byEmail.spotifyId) {
                         byEmail.spotifyId = spotifyId;
                         byEmail.spotifyProfile = profile;
-                        targetUser = await byEmail.save();
+                        byEmail.spotifyLinked = true;
+                        try {
+                            targetUser = await byEmail.save();
+                            console.log(`Linked Spotify ${spotifyId} to existing user ${targetUser._id} (by email)`);
+                            console.log('Post-save user fields', { id: String(targetUser._id), spotifyId: targetUser.spotifyId, spotifyLinked: targetUser.spotifyLinked });
+                            try {
+                                const reloaded2 = await LocalUser.findById(targetUser._id).lean().exec();
+                                console.log('DB read immediately after save (by email)', { reloaded: reloaded2 });
+                            }
+                            catch (reErr2) {
+                                console.error('Failed to re-query user after save (by email)', { userId: targetUser._id, err: reErr2 });
+                            }
+                        }
+                        catch (saveErr) {
+                            console.error('Failed to save user when linking by email', { email: byEmail.email, err: saveErr });
+                            return res.status(500).json({ error: 'db_save_failed', message: 'Failed to persist Spotify link' });
+                        }
                     }
                 }
             }
@@ -204,13 +286,29 @@ export const callback = async (req, res) => {
                 const randomPassword = Math.random().toString(36).slice(2, 12) + Date.now().toString(36).slice(-4);
                 const salt = await bcrypt.genSalt(10);
                 const hash = await bcrypt.hash(randomPassword, salt);
-                const newUser = await LocalUser.create({
-                    name: profile?.display_name || `Spotify User ${spotifyId}`,
-                    email: profile?.email || `spotify-${spotifyId}@local`,
-                    passwordHash: hash,
-                    spotifyId,
-                    spotifyProfile: profile,
-                });
+                let newUser;
+                try {
+                    newUser = await LocalUser.create({
+                        name: profile?.display_name || `Spotify User ${spotifyId}`,
+                        email: profile?.email || `spotify-${spotifyId}@local`,
+                        passwordHash: hash,
+                        spotifyId,
+                        spotifyProfile: profile,
+                        spotifyLinked: true,
+                    });
+                    console.log('Created new local user', { id: String(newUser._id), spotifyId: newUser.spotifyId, spotifyLinked: newUser.spotifyLinked });
+                    try {
+                        const reloaded3 = await LocalUser.findById(newUser._id).lean().exec();
+                        console.log('DB read immediately after create', { reloaded: reloaded3 });
+                    }
+                    catch (reErr3) {
+                        console.error('Failed to re-query user after create', { userId: newUser._id, err: reErr3 });
+                    }
+                }
+                catch (createErr) {
+                    console.error('Failed to create local user for Spotify account', { spotifyId, err: createErr });
+                    return res.status(500).json({ error: 'db_create_failed', message: 'Failed to create linked local user' });
+                }
                 targetUser = newUser;
             }
             // Issue JWT for the linked/created local user

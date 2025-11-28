@@ -35,6 +35,7 @@ export const getCurrentAuthUser = async (req: Request, res: Response) => {
         name: user.name,
         email: user.email,
         displayName: user.name,
+        spotifyLinked: (user as any).spotifyLinked ?? false,
         spotifyId: (user as any).spotifyId ?? null,
         spotifyProfile: (user as any).spotifyProfile ?? null,
       },

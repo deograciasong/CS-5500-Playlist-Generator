@@ -21,5 +21,10 @@ router.post("/register", register);
 router.post("/login-local", loginLocal);
 // Get current authenticated user (checks cookie or Authorization header)
 router.get('/me', getCurrentAuthUser);
+// Debug: fetch a LocalUser by email or id (disabled in production)
+router.get('/debug/user', (req, res, next) => {
+    // lazy import to avoid circular issues and keep behavior consistent with other routes
+    import('../controllers/debug.controller.js').then(mod => mod.getUserByEmailOrId(req, res)).catch(next);
+});
 export default router;
 //# sourceMappingURL=auth.js.map

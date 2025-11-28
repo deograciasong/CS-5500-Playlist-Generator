@@ -198,7 +198,21 @@ export const callback = async (req: Request, res: Response) => {
             if (user) {
               (user as any).spotifyId = spotifyId;
               (user as any).spotifyProfile = profile;
-              await user.save();
+              (user as any).spotifyLinked = true;
+              try {
+                await user.save();
+                console.log(`Saved local user ${user._id} after linking Spotify ${spotifyId}`);
+                console.log('Post-save user fields', { id: String(user._id), spotifyId: (user as any).spotifyId, spotifyLinked: (user as any).spotifyLinked });
+                try {
+                  const reloaded = await LocalUser.findById(user._id).lean().exec();
+                  console.log('DB read immediately after save', { reloaded });
+                } catch (reErr) {
+                  console.error('Failed to re-query user after save', { userId: user._id, err: reErr });
+                }
+              } catch (saveErr) {
+                console.error('Failed to save linked local user', { userId: user._id, err: saveErr });
+                return res.status(500).json({ error: 'db_save_failed', message: 'Failed to persist Spotify link' });
+              }
 
               // Re-issue JWT for the local user
               const payloadOut = { sub: String(user._id), email: user.email, provider: "local" };
@@ -236,11 +250,25 @@ export const callback = async (req: Request, res: Response) => {
         const email = profile?.email;
         if (email) {
           const byEmail = await LocalUser.findOne({ email }).exec();
-          if (byEmail && !(byEmail as any).spotifyId) {
-            (byEmail as any).spotifyId = spotifyId;
-            (byEmail as any).spotifyProfile = profile;
-            targetUser = await byEmail.save();
-          }
+            if (byEmail && !(byEmail as any).spotifyId) {
+              (byEmail as any).spotifyId = spotifyId;
+              (byEmail as any).spotifyProfile = profile;
+              (byEmail as any).spotifyLinked = true;
+              try {
+                targetUser = await byEmail.save();
+                console.log(`Linked Spotify ${spotifyId} to existing user ${targetUser._id} (by email)`);
+                console.log('Post-save user fields', { id: String(targetUser._id), spotifyId: (targetUser as any).spotifyId, spotifyLinked: (targetUser as any).spotifyLinked });
+                try {
+                  const reloaded2 = await LocalUser.findById(targetUser._id).lean().exec();
+                  console.log('DB read immediately after save (by email)', { reloaded: reloaded2 });
+                } catch (reErr2) {
+                  console.error('Failed to re-query user after save (by email)', { userId: targetUser._id, err: reErr2 });
+                }
+              } catch (saveErr) {
+                console.error('Failed to save user when linking by email', { email: byEmail.email, err: saveErr });
+                return res.status(500).json({ error: 'db_save_failed', message: 'Failed to persist Spotify link' });
+              }
+            }
         }
       }
 
@@ -250,13 +278,27 @@ export const callback = async (req: Request, res: Response) => {
         const salt = await bcrypt.genSalt(10);
         const hash = await bcrypt.hash(randomPassword, salt);
 
-        const newUser = await LocalUser.create({
-          name: profile?.display_name || `Spotify User ${spotifyId}`,
-          email: profile?.email || `spotify-${spotifyId}@local`,
-          passwordHash: hash,
-          spotifyId,
-          spotifyProfile: profile,
-        });
+        let newUser;
+                try {
+          newUser = await LocalUser.create({
+            name: profile?.display_name || `Spotify User ${spotifyId}`,
+            email: profile?.email || `spotify-${spotifyId}@local`,
+            passwordHash: hash,
+            spotifyId,
+            spotifyProfile: profile,
+            spotifyLinked: true,
+          });
+          console.log('Created new local user', { id: String(newUser._id), spotifyId: (newUser as any).spotifyId, spotifyLinked: (newUser as any).spotifyLinked });
+          try {
+            const reloaded3 = await LocalUser.findById(newUser._id).lean().exec();
+            console.log('DB read immediately after create', { reloaded: reloaded3 });
+          } catch (reErr3) {
+            console.error('Failed to re-query user after create', { userId: newUser._id, err: reErr3 });
+          }
+        } catch (createErr) {
+          console.error('Failed to create local user for Spotify account', { spotifyId, err: createErr });
+          return res.status(500).json({ error: 'db_create_failed', message: 'Failed to create linked local user' });
+        }
         targetUser = newUser;
       }
 
