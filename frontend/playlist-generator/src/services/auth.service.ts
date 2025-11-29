@@ -47,7 +47,7 @@ export const authService = {
     // redirecting to Spotify.
     // Use the app's API base so the request goes through the dev proxy (preserves cookies)
     const base = API_URL.replace(/\/$/, '');
-    const redirect = encodeURIComponent(`${window.location.origin}/account`);
+    const redirect = encodeURIComponent(`${window.location.origin}/dashboard`);
     return `${base}/auth/login?code_challenge=${encodeURIComponent(codeChallenge)}&code_verifier=${encodeURIComponent(codeVerifier)}&redirect=${redirect}`;
   },
 

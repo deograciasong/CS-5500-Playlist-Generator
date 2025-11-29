@@ -26,7 +26,7 @@ const JWT_SECRET = process.env.JWT_SECRET ?? "dev-jwt-secret";
 const AUTH_URL = "https://accounts.spotify.com/authorize";
 const clientId = process.env.SPOTIFY_CLIENT_ID!;
 const redirectUri = process.env.SPOTIFY_REDIRECT_URI!;
-const appRedirect = process.env.APP_REDIRECT_AFTER_LOGIN ?? "/";
+const appRedirect = process.env.APP_REDIRECT_AFTER_LOGIN ?? "/dashboard";
 const scope =
   "user-read-email user-read-private playlist-modify-public playlist-modify-private";
 
