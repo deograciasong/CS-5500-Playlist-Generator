@@ -55,13 +55,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="sidebar-bottom">
         {isAuthenticated ? (
           <div style={{ padding: '0 10px' }}>
-            <div style={{
-              padding: '12px',
-              background: 'rgba(255, 255, 255, 0.05)',
-              borderRadius: '12px',
-              marginBottom: '10px',
-              textAlign: 'center'
-            }}>
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate('/account')}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/account'); }}
+              style={{
+                padding: '12px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                borderRadius: '12px',
+                marginBottom: '10px',
+                textAlign: 'center',
+                cursor: 'pointer'
+              }}
+            >
               {(() => {
                 const name = user?.displayName ?? user?.display_name ?? 'User';
                 const initial = name.charAt(0).toUpperCase();

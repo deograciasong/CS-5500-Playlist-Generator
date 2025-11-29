@@ -4,9 +4,10 @@ import { useNavigate } from 'react-router-dom';
 interface NavbarProps {
   onGetStarted?: () => void;
   showAuthButton?: boolean;
+  showAccount?: boolean;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onGetStarted, showAuthButton = true }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onGetStarted, showAuthButton = true, showAccount = true }) => {
   const navigate = useNavigate();
 
   return (
@@ -19,11 +20,18 @@ export const Navbar: React.FC<NavbarProps> = ({ onGetStarted, showAuthButton = t
         <li><a href="#about">About</a></li>
         <li><a href="#pricing">Pricing</a></li> */}
       </ul>
-      {showAuthButton && onGetStarted && (
-        <button className="btn-primary" onClick={onGetStarted}>
-          Login
-        </button>
-      )}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        {showAccount && (
+          <button className="btn-secondary" onClick={() => navigate('/account')}>
+            Account
+          </button>
+        )}
+        {showAuthButton && onGetStarted && (
+          <button className="btn-primary" onClick={onGetStarted}>
+            Login
+          </button>
+        )}
+      </div>
     </nav>
   );
 };
