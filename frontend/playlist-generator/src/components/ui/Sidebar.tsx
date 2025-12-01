@@ -1,6 +1,8 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import type { SpotifyUserProfile, User } from '../../types/index.ts';
 import '../../main.css';
+
 
 interface NavItem {
   icon: string;
@@ -12,7 +14,6 @@ const navItems: NavItem[] = [
   { icon: '🏠', label: 'Home', path: '/dashboard' },
   { icon: '📚', label: 'Library', path: '/library' },
   { icon: '📊', label: 'Analytics', path: '/analytics' },
-  // { icon: '🔍', label: 'Explore', path: '/explore' },
   { icon: '⭐', label: 'Premium', path: '/premium' },
 ];
 
@@ -24,6 +25,15 @@ interface SidebarProps {
   user?: any;
 }
 
+const capitalizeFirstLetter = (str: string) => {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+};
+
+//helper function to check if user is SpotifyUserProfile
+const isSpotifyUser = (user: any): user is SpotifyUserProfile => {
+  return user && 'images' in user;
+};
+
 export const Sidebar: React.FC<SidebarProps> = ({ 
   onLogin, 
   onSignup, 
@@ -33,6 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
+
 
   return (
     <div className="sidebar">
@@ -51,7 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       ))}
 
-      <div className="sidebar-bottom">
+       <div className="sidebar-bottom">
         {isAuthenticated ? (
           <div style={{ padding: '0 10px' }}>
             <div
@@ -69,9 +80,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }}
             >
               {(() => {
-                const name = user?.displayName ?? user?.display_name ?? 'User';
+                let rawName = 'User';
+                
+                if (user) {
+                  if ('displayName' in user && user.displayName) {
+                    rawName = user.displayName;
+                  } else if ('display_name' in user && user.display_name) {
+                    rawName = user.display_name;
+                  } else if (user.email) {
+                    rawName = user.email.split('@')[0];
+                  } else if ('id' in user) {
+                    rawName = user.id;
+                  }
+                }
+                
+                const name = capitalizeFirstLetter(rawName);
                 const initial = name.charAt(0).toUpperCase();
-                const imageUrl = user?.profileImage ?? user?.images?.[0]?.url ?? user?.image ?? null;
+                
+                // Type-safe image access
+                let imageUrl = null;
+                if (user) {
+                  if ('profileImage' in user) {
+                    imageUrl = user.profileImage;
+                  } else if (isSpotifyUser(user) && user.images && user.images.length > 0) {
+                    imageUrl = user.images[0].url;
+                  }
+                }
 
                 return (
                   <>
