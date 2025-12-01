@@ -15,6 +15,7 @@ export const Playlist: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportedUrl, setExportedUrl] = useState<string | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     // Debug: Log when component mounts
@@ -119,12 +120,30 @@ export const Playlist: React.FC = () => {
     return (
       <>
         <div className="gradient-bg"></div>
-        <Sidebar 
-          onLogin={() => {}} 
-          onSignup={() => {}} 
-          isAuthenticated={true} 
-          onLogout={handleLogout} 
-        />
+        
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="mobile-menu-button"
+        >
+          {isMobileMenuOpen ? '✕' : '☰'}
+        </button>
+        
+        {isMobileMenuOpen && (
+          <div 
+            className="sidebar-overlay"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+        
+        <div className={isMobileMenuOpen ? 'open' : ''}>
+          <Sidebar 
+            onLogin={() => {}} 
+            onSignup={() => {}} 
+            isAuthenticated={true} 
+            onLogout={handleLogout} 
+          />
+        </div>
+        
         <div className="playlist-page">
           <div className="playlist-error">
             <h2>No Playlist Found</h2>
@@ -143,12 +162,29 @@ export const Playlist: React.FC = () => {
   return (
     <>
       <div className="gradient-bg"></div>
-      <Sidebar 
-        onLogin={() => {}} 
-        onSignup={() => {}} 
-        isAuthenticated={true} 
-        onLogout={handleLogout} 
-      />
+      
+      <button
+        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        className="mobile-menu-button"
+      >
+        {isMobileMenuOpen ? '✕' : '☰'}
+      </button>
+      
+      {isMobileMenuOpen && (
+        <div 
+          className="sidebar-overlay"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+      
+      <div className={isMobileMenuOpen ? 'open' : ''}>
+        <Sidebar 
+          onLogin={() => {}} 
+          onSignup={() => {}} 
+          isAuthenticated={true} 
+          onLogout={handleLogout} 
+        />
+      </div>
 
       <div className="playlist-page">
         <button className="back-button" onClick={handleBack}>

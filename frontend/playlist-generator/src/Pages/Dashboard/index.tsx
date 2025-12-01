@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../../components/ui/Sidebar';
 import { analyzeMood } from '../../services/mood.service';
 import { filterSongsByMood } from '../../services/songRecommendation.service';
+import { Background } from '../../components/ui/Background';
 import { authService } from '../../services/auth.service';
-import type { SpotifyUserProfile, User } from '../../types';
+import type { SpotifyUserProfile, User } from '../../types/index.ts';
 import type { Song } from '../../types/song.types';
 import '../../main.css';
 
 const toolTabs = [
   '🎧 Mood Assistant',
-  '🎵 AI Playlist',
   '⚡ Quick Vibe',
   '🎹 Mood Mix',
 ];
@@ -36,12 +36,15 @@ const getUniqueSongs = (songs: Song[]) => {
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<SpotifyUserProfile | User | null>(null);
-  const [activeTab, setActiveTab] = useState(1);
+  const [activeTab, setActiveTab] = useState(0);
   const [moodInput, setMoodInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [songs, setSongs] = useState<Song[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
+  const [selectedMoods, setSelectedMoods] = useState<{[key: string]: boolean}>({});
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
 
   useEffect(() => {
     loadSongsData();
@@ -84,39 +87,41 @@ export const Dashboard: React.FC = () => {
     navigate('/');
   };
 
-  const handleGenerate = async () => {
-    if (!moodInput.trim()) {
-      setError('Please describe your mood first!');
+  const handleGenerate = async (customInput?: string) => {
+  const inputToUse = customInput || moodInput;
+
+  if (!inputToUse.trim()) {  // Changed from moodInput to inputToUse
+    setError('Please describe your mood first!');
+    return;
+  }
+
+  if (songs.length === 0) {
+    setError('Music library is still loading. Please wait...');
+    return;
+  }
+
+  setLoading(true);
+  setError(null);
+
+  try {
+    console.log('Analyzing mood from input:', inputToUse);  // Changed from moodInput to inputToUse
+    
+    // Step 1: Analyze the mood from user's input
+    const moodProfile = analyzeMood(inputToUse);  // Changed from moodInput to inputToUse
+    console.log('Mood profile:', moodProfile);
+    
+    // Step 2: Filter songs based on the mood profile
+    const playlistSongs = filterSongsByMood(songs, moodProfile, 20);
+    
+    // Step 2.5: Remove duplicates
+    const uniquePlaylistSongs = getUniqueSongs(playlistSongs);
+    console.log(`Generated playlist with ${uniquePlaylistSongs.length} unique songs`);
+    
+    if (uniquePlaylistSongs.length === 0) {
+      setError('No songs found matching your mood. Try a different description!');
+      setLoading(false);
       return;
     }
-
-    if (songs.length === 0) {
-      setError('Music library is still loading. Please wait...');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      console.log('Analyzing mood from input:', moodInput);
-      
-      // Step 1: Analyze the mood from user's input
-      const moodProfile = analyzeMood(moodInput);
-      console.log('Mood profile:', moodProfile);
-      
-      // Step 2: Filter songs based on the mood profile
-      const playlistSongs = filterSongsByMood(songs, moodProfile, 20);
-      
-      // Step 2.5: Remove duplicates
-      const uniquePlaylistSongs = getUniqueSongs(playlistSongs);
-      console.log(`Generated playlist with ${uniquePlaylistSongs.length} unique songs`);
-      
-      if (uniquePlaylistSongs.length === 0) {
-        setError('No songs found matching your mood. Try a different description!');
-        setLoading(false);
-        return;
-      }
 
       // Step 3: Create playlist object
       const playlist = {
@@ -141,13 +146,383 @@ export const Dashboard: React.FC = () => {
     setMoodInput(prompt);
   };
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    const name = user?.display_name || 'there';
-    if (hour < 12) return `Good Morning, ${name}! 👋`;
-    if (hour < 18) return `Good Afternoon, ${name}! 👋`;
-    return `Good Evening, ${name}! 👋`;
-  };
+
+const capitalizeFirstLetter = (str: string) => {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+};
+
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  
+  let name = 'User';
+  
+  if (user) {
+    // Handle User type (from local auth)
+    if ('displayName' in user && user.displayName) {
+      name = user.displayName;
+    } 
+    // Handle SpotifyUserProfile type (from Spotify auth)
+    else if ('display_name' in user && user.display_name) {
+      name = user.display_name;
+    }
+    // Fallback to email username if no display name
+    else if (user.email) {
+      name = user.email.split('@')[0];
+    }
+    // Last resort: use Spotify ID
+    else if ('id' in user) {
+      name = user.id;
+    }
+  }
+  
+  name = capitalizeFirstLetter(name);
+  
+  if (hour < 12) return `Good Morning, ${name}! 👋`;
+  if (hour < 18) return `Good Afternoon, ${name}! 👋`;
+  return `Good Evening, ${name}! 👋`;
+};
+
+
+  const handleMoodMixGenerate = async () => {
+  const activeMoods = Object.entries(selectedMoods)
+    .filter(([_, isSelected]) => isSelected)
+    .map(([mood, _]) => mood);
+
+  if (activeMoods.length === 0) {
+    setError('Please select at least one mood!');
+    return;
+  }
+
+  if (songs.length === 0) {
+    setError('Music library is still loading. Please wait...');
+    return;
+  }
+
+  setLoading(true);
+  setError(null);
+
+  try {
+    // Create a combined mood description
+    const combinedMoodDescription = activeMoods.join(' and ');
+    console.log('Mixing moods:', combinedMoodDescription);
+    
+    // Analyze the combined mood
+    const moodProfile = analyzeMood(combinedMoodDescription);
+    console.log('Combined mood profile:', moodProfile);
+    
+    // Filter songs based on the mood profile
+    const playlistSongs = filterSongsByMood(songs, moodProfile, 20);
+    const uniquePlaylistSongs = getUniqueSongs(playlistSongs);
+    
+    console.log(`Generated mixed playlist with ${uniquePlaylistSongs.length} unique songs`);
+    
+    if (uniquePlaylistSongs.length === 0) {
+      setError('No songs found matching your mood mix. Try different moods!');
+      setLoading(false);
+      return;
+    }
+
+    const playlist = {
+      mood: `${moodProfile.name} Mix`,
+      songs: uniquePlaylistSongs,
+      description: `A blend of ${combinedMoodDescription}`
+    };
+    
+    setTimeout(() => {
+      navigate('/playlist', { state: { playlist } });
+    }, 500);
+    
+  } catch (error) {
+    console.error('Error generating mixed playlist:', error);
+    setError('Failed to generate playlist. Please try again.');
+    setLoading(false);
+  }
+};
+
+const toggleMood = (mood: string) => {
+  setSelectedMoods(prev => ({
+    ...prev,
+    [mood]: !prev[mood]
+  }));
+};
+
+const renderTabContent = () => {
+  switch (activeTab) {
+    case 0: // Mood Assistant
+      return (
+        <>
+          <div className="input-section">
+            <div className="input-wrapper">
+              <textarea
+                className="main-input"
+                placeholder="Describe your mood and we'll create the perfect playlist from your Spotify library...
+
+Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studying'"
+                value={moodInput}
+                onChange={(e) => setMoodInput(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && e.ctrlKey) {
+                    handleGenerate();
+                  }
+                }}
+                disabled={loading}
+              />
+              <button 
+                className="send-button" 
+                onClick={() => handleGenerate()}
+                disabled={loading || songs.length === 0}
+              >
+                {loading ? (
+                  <div className="spinner"></div>
+                ) : (
+                  <svg viewBox="0 0 24 24">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="example-prompts">
+            {examplePrompts.map((prompt, index) => (
+              <div
+                key={index}
+                className="example-prompt"
+                onClick={() => handleExampleClick(prompt)}
+              >
+                {prompt}
+              </div>
+            ))}
+          </div>
+        </>
+      );
+
+    case 1: // Quick Vibe
+      return (
+        <div style={{ marginTop: '2rem' }}>
+          <h3 style={{ color: 'white', marginBottom: '1.5rem', fontSize: '1.2rem' }}>
+            Select a Quick Vibe
+          </h3>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '1rem',
+            marginBottom: '2rem'
+          }}>
+            <button
+              style={{
+                padding: '1.5rem',
+                background: 'rgba(139, 92, 246, 0.2)',
+                border: '2px solid rgba(139, 92, 246, 0.3)',
+                borderRadius: '12px',
+                color: 'white',
+                fontSize: '1.1rem',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
+              }}
+              onClick={() => handleGenerate('Chill and relaxed vibes, lo-fi beats')}
+              disabled={loading || songs.length === 0}
+            >
+              😌 Chill
+            </button>
+            <button
+              style={{
+                padding: '1.5rem',
+                background: 'rgba(139, 92, 246, 0.2)',
+                border: '2px solid rgba(139, 92, 246, 0.3)',
+                borderRadius: '12px',
+                color: 'white',
+                fontSize: '1.1rem',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
+              }}
+              onClick={() => handleGenerate('Energetic and upbeat, high energy workout music')}
+              disabled={loading || songs.length === 0}
+            >
+              ⚡ Energetic
+            </button>
+            <button
+              style={{
+                padding: '1.5rem',
+                background: 'rgba(139, 92, 246, 0.2)',
+                border: '2px solid rgba(139, 92, 246, 0.3)',
+                borderRadius: '12px',
+                color: 'white',
+                fontSize: '1.1rem',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
+              }}
+              onClick={() => handleGenerate('Sad and melancholic, emotional ballads')}
+              disabled={loading || songs.length === 0}
+            >
+              😢 Sad
+            </button>
+            <button
+              style={{
+                padding: '1.5rem',
+                background: 'rgba(139, 92, 246, 0.2)',
+                border: '2px solid rgba(139, 92, 246, 0.3)',
+                borderRadius: '12px',
+                color: 'white',
+                fontSize: '1.1rem',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
+              }}
+              onClick={() => handleGenerate('Happy and joyful, feel-good music')}
+              disabled={loading || songs.length === 0}
+            >
+              😊 Happy
+            </button>
+            <button
+              style={{
+                padding: '1.5rem',
+                background: 'rgba(139, 92, 246, 0.2)',
+                border: '2px solid rgba(139, 92, 246, 0.3)',
+                borderRadius: '12px',
+                color: 'white',
+                fontSize: '1.1rem',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
+              }}
+              onClick={() => handleGenerate('Focus and concentration, ambient instrumental')}
+              disabled={loading || songs.length === 0}
+            >
+              🎯 Focus
+            </button>
+            <button
+              style={{
+                padding: '1.5rem',
+                background: 'rgba(139, 92, 246, 0.2)',
+                border: '2px solid rgba(139, 92, 246, 0.3)',
+                borderRadius: '12px',
+                color: 'white',
+                fontSize: '1.1rem',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
+              }}
+              onClick={() => handleGenerate('Party and dance, high energy club music')}
+              disabled={loading || songs.length === 0}
+            >
+              🎉 Party
+            </button>
+          </div>
+          {loading && (
+            <div style={{ textAlign: 'center', color: 'white', marginTop: '1rem' }}>
+              <div className="spinner" style={{ margin: '0 auto' }}></div>
+              <p>Creating your playlist...</p>
+            </div>
+          )}
+        </div>
+      );
+
+    case 2: // Mood Mix
+  return (
+    <div style={{ marginTop: '2rem' }}>
+      <h3 style={{ color: 'white', marginBottom: '1rem', fontSize: '1.5rem', textAlign: 'center' }}>
+        🎹 Mood Mix
+      </h3>
+      <p style={{ 
+        color: 'rgba(255, 255, 255, 0.7)', 
+        marginBottom: '2rem', 
+        textAlign: 'center' 
+      }}>
+        Select multiple moods to create a unique blended playlist
+      </p>
+      
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: '1rem',
+        marginBottom: '2rem'
+      }}>
+        {[
+          { name: 'Chill', emoji: '😌', description: 'relaxed and calm' },
+          { name: 'Energetic', emoji: '⚡', description: 'high energy and upbeat' },
+          { name: 'Sad', emoji: '😢', description: 'melancholic and emotional' },
+          { name: 'Happy', emoji: '😊', description: 'joyful and feel-good' },
+          { name: 'Focus', emoji: '🎯', description: 'concentration and ambient' },
+          { name: 'Party', emoji: '🎉', description: 'dance and celebration' },
+        ].map((mood) => (
+          <button
+            key={mood.name}
+            style={{
+              padding: '1.5rem 1rem',
+              background: selectedMoods[mood.description] 
+                ? 'rgba(139, 92, 246, 0.4)' 
+                : 'rgba(139, 92, 246, 0.1)',
+              border: selectedMoods[mood.description]
+                ? '2px solid rgba(139, 92, 246, 0.8)'
+                : '2px solid rgba(139, 92, 246, 0.3)',
+              borderRadius: '12px',
+              color: 'white',
+              fontSize: '1rem',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}
+            onClick={() => toggleMood(mood.description)}
+          >
+            <span style={{ fontSize: '2rem' }}>{mood.emoji}</span>
+            <span style={{ fontWeight: selectedMoods[mood.description] ? 'bold' : 'normal' }}>
+              {mood.name}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div style={{ 
+        textAlign: 'center', 
+        marginTop: '2rem',
+        color: 'rgba(255, 255, 255, 0.7)',
+        fontSize: '0.9rem'
+      }}>
+        {Object.values(selectedMoods).filter(Boolean).length > 0 && (
+          <p style={{ marginBottom: '1rem' }}>
+            Selected: {Object.entries(selectedMoods)
+              .filter(([_, isSelected]) => isSelected)
+              .map(([mood, _]) => mood)
+              .join(', ')}
+          </p>
+        )}
+      </div>
+
+      <div style={{ textAlign: 'center' }}>
+        <button
+          style={{
+            padding: '1rem 3rem',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            border: 'none',
+            borderRadius: '25px',
+            color: 'white',
+            fontSize: '1.1rem',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+            opacity: Object.values(selectedMoods).filter(Boolean).length === 0 || loading ? 0.5 : 1
+          }}
+          onClick={handleMoodMixGenerate}
+          disabled={Object.values(selectedMoods).filter(Boolean).length === 0 || loading || songs.length === 0}
+        >
+          {loading ? 'Creating Mix...' : 'Generate Mixed Playlist'}
+        </button>
+      </div>
+
+      {loading && (
+        <div style={{ textAlign: 'center', color: 'white', marginTop: '1.5rem' }}>
+          <div className="spinner" style={{ margin: '0 auto' }}></div>
+          <p>Blending your moods...</p>
+        </div>
+      )}
+    </div>
+  );
+
+    default:
+      return null;
+  }
+};
 
   if (loadingUser) {
     return (
@@ -168,14 +543,33 @@ export const Dashboard: React.FC = () => {
 
   return (
     <>
-      <div className="gradient-bg"></div>
-      <Sidebar 
-        onLogin={() => {}} 
-        onSignup={() => {}} 
-        isAuthenticated={!!user} 
-        onLogout={handleLogout} 
-        user={user} 
-      />
+      <Background />
+      
+      {/* Mobile Menu Button */}
+      <button
+        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        className="mobile-menu-button"
+      >
+        {isMobileMenuOpen ? '✕' : '☰'}
+      </button>
+      
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="sidebar-overlay"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+      
+      <div className={isMobileMenuOpen ? 'open' : ''}>
+        <Sidebar 
+          onLogin={() => {}} 
+          onSignup={() => {}} 
+          isAuthenticated={!!user} 
+          onLogout={handleLogout} 
+          user={user}
+        />
+      </div>
 
       <div className="main-content">
         <h1 className="greeting">{getGreeting()}</h1>
@@ -198,53 +592,8 @@ export const Dashboard: React.FC = () => {
           </div>
         )}
 
-        <div className="input-section">
-          <div className="input-wrapper">
-            <textarea
-              className="main-input"
-              placeholder="Describe your mood and we'll create the perfect playlist from your Spotify library...
+        {renderTabContent()}
 
-Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studying'"
-              value={moodInput}
-              onChange={(e) => setMoodInput(e.target.value)}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter' && e.ctrlKey) {
-                  handleGenerate();
-                }
-              }}
-              disabled={loading}
-            />
-            <button 
-              className="send-button" 
-              onClick={handleGenerate}
-              disabled={loading || songs.length === 0}
-            >
-              {loading ? (
-                <div className="spinner"></div>
-              ) : (
-                <svg viewBox="0 0 24 24">
-                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                </svg>
-              )}
-            </button>
-          </div>
-          <div className="input-options">
-            <button className="option-btn">🔎 Attach Playlist</button>
-            <button className="option-btn">⚙️ Custom Settings</button>
-          </div>
-        </div>
-
-        <div className="example-prompts">
-          {examplePrompts.map((prompt, index) => (
-            <div
-              key={index}
-              className="example-prompt"
-              onClick={() => handleExampleClick(prompt)}
-            >
-              {prompt}
-            </div>
-          ))}
-        </div>
       </div>
     </>
   );

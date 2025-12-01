@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../../components/ui/Sidebar';
+import { Background } from '../../components/ui/Background';
 import { playlistStorage, SavedPlaylist } from '../../services/playlistStorage.service';
 import '../../main.css';
 
@@ -8,6 +9,7 @@ export const Library: React.FC = () => {
   const navigate = useNavigate();
   const [savedPlaylists, setSavedPlaylists] = useState<SavedPlaylist[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     loadPlaylists();
@@ -70,12 +72,30 @@ export const Library: React.FC = () => {
     return (
       <>
         <div className="gradient-bg"></div>
-        <Sidebar 
-          onLogin={() => {}} 
-          onSignup={() => {}} 
-          isAuthenticated={true} 
-          onLogout={handleLogout} 
-        />
+        
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="mobile-menu-button"
+        >
+          {isMobileMenuOpen ? '✕' : '☰'}
+        </button>
+        
+        {isMobileMenuOpen && (
+          <div 
+            className="sidebar-overlay"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+        
+        <div className={isMobileMenuOpen ? 'open' : ''}>
+          <Sidebar 
+            onLogin={() => {}} 
+            onSignup={() => {}} 
+            isAuthenticated={true} 
+            onLogout={handleLogout} 
+          />
+        </div>
+        
         <div className="library-page">
           <div className="loading-state">Loading your library...</div>
         </div>
@@ -85,13 +105,30 @@ export const Library: React.FC = () => {
 
   return (
     <>
-      <div className="gradient-bg"></div>
-      <Sidebar 
-        onLogin={() => {}} 
-        onSignup={() => {}} 
-        isAuthenticated={true} 
-        onLogout={handleLogout} 
-      />
+      <Background />
+      
+      <button
+        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        className="mobile-menu-button"
+      >
+        {isMobileMenuOpen ? '✕' : '☰'}
+      </button>
+      
+      {isMobileMenuOpen && (
+        <div 
+          className="sidebar-overlay"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+      
+      <div className={isMobileMenuOpen ? 'open' : ''}>
+        <Sidebar 
+          onLogin={() => {}} 
+          onSignup={() => {}} 
+          isAuthenticated={true} 
+          onLogout={handleLogout} 
+        />
+      </div>
 
       <div className="library-page">
         <div className="library-header">

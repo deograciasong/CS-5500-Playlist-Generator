@@ -4,7 +4,7 @@ import { Dashboard } from './Pages/Dashboard';
 import { Playlist } from './Pages/Playlist';
 import { Library } from './Pages/Library';
 import { SignupPage } from './Pages/SignupPage'; 
-import AccountSettings from './Pages/AccountSettings';
+import {AccountSettings} from './Pages/AccountSettings';
 
 
 
