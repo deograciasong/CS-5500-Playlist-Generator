@@ -80,7 +80,9 @@ export const Playlist: React.FC = () => {
     setExportedUrl(null);
 
     try {
-      const name = `${playlist.mood}`;
+      const name = (playlist.mood && playlist.mood.trim().length > 0)
+        ? playlist.mood
+        : `MoodTune Playlist ${new Date().toLocaleDateString()}`;
       const description = playlist.description || '';
       const created = await playlistService.createSpotifyPlaylist({
         name,
@@ -97,8 +99,11 @@ export const Playlist: React.FC = () => {
       setExportedUrl(url);
     } catch (error: any) {
       console.error('Failed to export playlist to Spotify', error);
-      const message = error?.response?.data?.message ?? error?.response?.data?.error ?? error?.message ?? 'Export failed';
-      setExportError(message);
+        // Log server response body (useful for debugging backend validation errors)
+        const serverBody = error?.response?.data;
+        console.debug('Export error response body:', serverBody);
+        const message = serverBody?.message ?? serverBody?.error ?? error?.message ?? 'Export failed';
+        setExportError(message);
     } finally {
       setIsExporting(false);
     }

@@ -40,7 +40,15 @@ export const authService = {
   startSpotifyLogin: async (): Promise<string> => {
     const { codeVerifier, codeChallenge } = await createPkcePair();
     storeCodeVerifier(codeVerifier);
-    return `${API_URL}/auth/login?code_challenge=${encodeURIComponent(codeChallenge)}&code_verifier=${encodeURIComponent(codeVerifier)}`;
+    // If API_URL is a relative path (e.g. '/api') we're likely running with a dev proxy.
+    // Redirecting the browser to a proxied URL can cause Set-Cookie headers from the
+    // backend to not be stored correctly by the browser. Use an absolute backend host
+    // in dev so cookies (spotify_code_verifier) are set on the backend origin before
+    // redirecting to Spotify.
+    // Use the app's API base so the request goes through the dev proxy (preserves cookies)
+    const base = API_URL.replace(/\/$/, '');
+    const redirect = encodeURIComponent(`${window.location.origin}/dashboard`);
+    return `${base}/auth/login?code_challenge=${encodeURIComponent(codeChallenge)}&code_verifier=${encodeURIComponent(codeVerifier)}&redirect=${redirect}`;
   },
 
   getCurrentUser: async (): Promise<SpotifyUserProfile | User> => {
@@ -57,6 +65,16 @@ export const authService = {
   loginLocal: async (payload: { email: string; password: string }) => {
     const response = await api.post('/auth/login-local', payload);
     return response.data;
+  },
+
+  updateProfile: async (payload: { name?: string; email?: string }) => {
+    const response = await api.put('/auth/me', payload);
+    return response.data.user;
+  },
+
+  changePassword: async (payload: { currentPassword: string; newPassword: string }) => {
+    const response = await api.put('/auth/me/password', payload);
+    return response.status === 204 ? null : response.data;
   },
 
   logout: () => {

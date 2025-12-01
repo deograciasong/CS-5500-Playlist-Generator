@@ -16,7 +16,7 @@ export declare const login: (req: Request, res: Response) => void;
  * GET /auth/callback
  * Exchanges code+code_verifier for tokens, sets httpOnly cookies, and redirects to the app.
  */
-export declare const callback: (req: Request, res: Response) => Promise<void>;
+export declare const callback: (req: Request, res: Response) => Promise<void | Response<any, Record<string, any>>>;
 /** POST /auth/refresh
  * Uses the refresh token cookie to obtain a new access token, updates cookies.
  */

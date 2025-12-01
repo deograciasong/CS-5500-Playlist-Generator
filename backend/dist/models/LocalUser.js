@@ -4,6 +4,10 @@ const localUserSchema = new mongoose.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     passwordHash: { type: String, required: true },
+    // Spotify linking fields (kept in sync with src model)
+    spotifyLinked: { type: Boolean, default: false },
+    spotifyId: { type: String, unique: true, sparse: true },
+    spotifyProfile: { type: mongoose.Schema.Types.Mixed },
 }, {
     timestamps: true,
 });
