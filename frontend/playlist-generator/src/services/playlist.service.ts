@@ -7,6 +7,12 @@ export const playlistService = {
     return response.data.playlist;
   },
 
+  generateFromSpotify: async (): Promise<Playlist> => {
+    // Backend should implement a Spotify-library based generator at this route.
+    const response = await api.post('/spotify/playlists/generate', { useSpotify: true });
+    return response.data.playlist;
+  },
+
   getUserPlaylists: async (): Promise<Playlist[]> => {
     const response = await api.get('/spotify/playlists');
     return response.data.playlists;
