@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../../components/ui/Sidebar';
 import { analyzeMood } from '../../services/mood.service';
 import { filterSongsByMood } from '../../services/songRecommendation.service';
+import aiService from '../../services/ai.service';
 import { authService } from '../../services/auth.service';
 import type { SpotifyUserProfile, User } from '../../types';
 import type { Song } from '../../types/song.types';
@@ -41,6 +42,7 @@ export const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [songs, setSongs] = useState<Song[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showReconnect, setShowReconnect] = useState(false);
   const [loadingUser, setLoadingUser] = useState(true);
 
   useEffect(() => {
@@ -137,6 +139,47 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  const handleAIGenerate = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      // call backend AI generator which will use the user's spotify cookie
+      const res = await aiService.generateFromSpotify(30, moodInput.trim());
+      if (!res || !res.tracks) {
+        setError('AI generation returned no results.');
+        setLoading(false);
+        return;
+      }
+
+      // Map backend tracks to the frontend Song shape expected by /playlist
+      const playlistSongs = res.tracks.map((t: any) => ({
+        track_id: t.spotifyId,
+        title: t.title || t.name,
+        artists: t.artists || '',
+      }));
+
+      const playlist = {
+        mood: res.name || 'AI-generated',
+        songs: playlistSongs,
+        description: res.description || moodInput,
+      };
+
+      navigate('/playlist', { state: { playlist } });
+    } catch (err: any) {
+      console.error('AI generate error', err);
+      const msg = typeof err === 'string' ? err : err?.message || 'AI generation failed';
+      setError(msg);
+      // If backend indicates missing Spotify scope, surface a reconnect action
+      if (msg.includes('user-library-read') || msg.toLowerCase().includes('missing_spotify_scope') || msg.toLowerCase().includes('missing spotify scope')) {
+        setShowReconnect(true);
+      } else {
+        setShowReconnect(false);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleExampleClick = (prompt: string) => {
     setMoodInput(prompt);
   };
@@ -195,6 +238,23 @@ export const Dashboard: React.FC = () => {
         {error && (
           <div className="error-message">
             ⚠️ {error}
+            {showReconnect && (
+              <div style={{ marginTop: 8 }}>
+                <button
+                  className="option-btn"
+                  onClick={async () => {
+                    try {
+                      const url = await (authService as any).startSpotifyLogin();
+                      window.location.href = url;
+                    } catch (e) {
+                      console.error('Failed to start spotify login', e);
+                    }
+                  }}
+                >
+                  🔁 Re-link Spotify
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -231,6 +291,9 @@ Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studyin
           <div className="input-options">
             <button className="option-btn">🔎 Attach Playlist</button>
             <button className="option-btn">⚙️ Custom Settings</button>
+            <button className="option-btn" onClick={handleAIGenerate} disabled={loading}>
+              🤖 AI Generate
+            </button>
           </div>
         </div>
 

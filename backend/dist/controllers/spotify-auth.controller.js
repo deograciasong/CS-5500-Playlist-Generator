@@ -16,7 +16,9 @@ const AUTH_URL = "https://accounts.spotify.com/authorize";
 const clientId = process.env.SPOTIFY_CLIENT_ID;
 const redirectUri = process.env.SPOTIFY_REDIRECT_URI;
 const appRedirect = process.env.APP_REDIRECT_AFTER_LOGIN ?? "/";
-const scope = "user-read-email user-read-private playlist-modify-public playlist-modify-private";
+// Include `user-library-read` so the app can read the user's saved tracks
+// (required by the AI generator). Keep playlist modify scopes for saving.
+const scope = "user-read-email user-read-private user-library-read playlist-modify-public playlist-modify-private";
 const cookieSecure = process.env.COOKIE_SECURE !== "false";
 /** Cookie presets: toggles secure based on env (secure required for cross-site). */
 const baseCookie = {
@@ -149,32 +151,6 @@ export const callback = async (req, res) => {
                         const already = await LocalUser.findOne({ spotifyId }).exec();
                         if (already && String(already._id) !== String(currentUserId)) {
                             // conflict: spotify account linked elsewhere
-                            // allow explicit override via `force_login=1` in query to sign in the linked user
-                            const forceLogin = (req.query && (req.query.force_login === '1' || req.query.force_login === 'true'));
-                            if (forceLogin) {
-                                console.log(`force_login provided — signing in existing user ${already._id} for Spotify ${spotifyId}`);
-                                const payloadOut = { sub: String(already._id), email: already.email, provider: "local" };
-                                const token = jwt.sign(payloadOut, JWT_SECRET, { expiresIn: "7d" });
-                                res.cookie("auth_token", token, {
-                                    httpOnly: true,
-                                    secure: process.env.NODE_ENV === "production",
-                                    sameSite: "lax",
-                                    maxAge: 7 * 24 * 60 * 60 * 1000,
-                                });
-
-                                const redirectTarget = (state && state.includes('|'))
-                                    ? decodeURIComponent(state.split('|').slice(1).join('|'))
-                                    : (typeof req.query.redirect === "string" ? req.query.redirect : appRedirect);
-                                try {
-                                    const qs = `spotify_linked=1&spotify_id=${encodeURIComponent(spotifyId ?? '')}&spotify_name=${encodeURIComponent((profile?.display_name) ?? profile?.id ?? '')}`;
-                                    const joiner = redirectTarget.includes('?') ? '&' : '?';
-                                    return res.redirect(`${redirectTarget}${joiner}${qs}`);
-                                }
-                                catch (e) {
-                                    return res.redirect(redirectTarget);
-                                }
-                            }
-
                             return res.status(409).json({ error: "spotify_already_linked", message: "This Spotify account is already linked to another user" });
                         }
                         const user = await LocalUser.findById(currentUserId).exec();
@@ -229,30 +205,6 @@ export const callback = async (req, res) => {
             }
             // No authenticated local user — sign-in or create a LocalUser linked to this Spotify account
             let targetUser = await LocalUser.findOne({ spotifyId }).exec();
-            if (targetUser) {
-                console.log(`Found existing LocalUser ${targetUser._id} linked to Spotify ${spotifyId}; signing in`);
-                const payloadOut = { sub: String(targetUser._id), email: targetUser.email, provider: "local" };
-                const token = jwt.sign(payloadOut, JWT_SECRET, { expiresIn: "7d" });
-                res.cookie("auth_token", token, {
-                    httpOnly: true,
-                    secure: process.env.NODE_ENV === "production",
-                    sameSite: "lax",
-                    maxAge: 7 * 24 * 60 * 60 * 1000,
-                });
-
-                const redirectTarget = (state && state.includes('|'))
-                    ? decodeURIComponent(state.split('|').slice(1).join('|'))
-                    : (typeof req.query.redirect === "string" ? req.query.redirect : appRedirect);
-                console.log(`Authenticated as local user ${targetUser._id}; redirecting to ${redirectTarget}`);
-                try {
-                    const qs = `spotify_linked=1&spotify_id=${encodeURIComponent(spotifyId ?? '')}&spotify_name=${encodeURIComponent((profile?.display_name) ?? profile?.id ?? '')}`;
-                    const joiner = redirectTarget.includes('?') ? '&' : '?';
-                    return res.redirect(`${redirectTarget}${joiner}${qs}`);
-                }
-                catch (e) {
-                    return res.redirect(redirectTarget);
-                }
-            }
             if (!targetUser) {
                 // Try to find by email (if available) and link if that account is not already linked
                 const email = profile?.email;
