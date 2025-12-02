@@ -56,9 +56,9 @@ app.use(cookieParser());
 connectDB();
 
 app.use("/api/auth", authRoutes);
-app.use("/api/spotify", spotifyUserRoutes);
 app.use("/api/spotify/playlists", spotifyPlaylistRoutes);
 app.use("/api/playlists", userPlaylistRoutes);
+app.use("/api/spotify", spotifyUserRoutes);
 
 const PORT = process.env.PORT ?? 5001;
 
