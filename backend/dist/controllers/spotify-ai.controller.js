@@ -1,4 +1,16 @@
 import { createSpotifyApiClient } from "../lib/spotify-api.js";
+import util from 'util';
+import fs from 'fs';
+function writeDebugLog(obj) {
+    try {
+        const p = '/tmp/spotify_audio_features_error.log';
+        const entry = `[${new Date().toISOString()}] ${util.inspect(obj, { depth: null })}\n`;
+        fs.appendFileSync(p, entry);
+    }
+    catch (e) {
+        // swallow
+    }
+}
 import crypto from 'crypto';
 import analyzeVibeText from '../lib/vibe-analyzer.js';
 // @ts-ignore - Track model is a JS file without types
@@ -33,11 +45,82 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                 // the controller will return a helpful reauthorize URL when needed.
             }
         }
+        // If Spotify didn't return audio-features for some sampled songs, attempt
+        // to populate `featuresMap` by matching tracks in our DB (spotifyTrackId
+        // or name + first artist).
+        const fillFeaturesFromDbForSample = async (sampleSongs, targetMap) => {
+            try {
+                const needIds = sampleSongs.map((s) => s.id).filter(Boolean).filter((id) => !targetMap[id]);
+                if (needIds.length === 0)
+                    return;
+                // Bulk lookup by spotifyTrackId
+                const found = await TrackModel.find({ spotifyTrackId: { $in: needIds } }).lean().exec();
+                for (const f of found) {
+                    const sid = f.spotifyTrackId;
+                    if (sid)
+                        targetMap[sid] = f.audioFeatures || {};
+                }
+                // Per-track fallback: name + first artist
+                const remaining = sampleSongs.filter((t) => t.id && !targetMap[t.id]);
+                for (const t of remaining) {
+                    try {
+                        const firstArtist = (t.artists && t.artists[0] && (t.artists[0].name || t.artists[0])) || '';
+                        const cand = await TrackModel.findOne({ name: t.name, 'artists.name': firstArtist }).lean().exec();
+                        if (cand) {
+                            targetMap[t.id] = cand.audioFeatures || {};
+                        }
+                    }
+                    catch (inner) {
+                        // ignore
+                    }
+                }
+            }
+            catch (dbErr) {
+                console.warn('Failed to fill sampled audio-features from DB', dbErr?.message ?? dbErr);
+            }
+        };
+        // (deferred) will fill after we have `songs` and `featuresMap` in scope
         // Determine desired sample size and check for a vibe text request
         const desired = 20;
         const vibeText = (req.body && req.body.vibeText) || req.query?.vibeText;
         let songs = [];
         let targetVec = null;
+        // If we see a 403 from Spotify audio-features, mark that we need reauthorization
+        let reauthNeeded = false;
+        const buildReauthorizeUrl = (res) => {
+            try {
+                const clientId = process.env.SPOTIFY_CLIENT_ID;
+                const redirectUri = process.env.SPOTIFY_REDIRECT_URI;
+                const scope = "user-read-email user-read-private user-library-read playlist-modify-public playlist-modify-private";
+                const base64Url = (buf) => buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+                const codeVerifier = base64Url(crypto.randomBytes(64));
+                const codeChallenge = base64Url(crypto.createHash('sha256').update(codeVerifier).digest());
+                const cookieSecure = process.env.COOKIE_SECURE !== 'false';
+                const baseCookie = {
+                    httpOnly: true,
+                    secure: cookieSecure,
+                    sameSite: cookieSecure ? 'none' : 'lax',
+                };
+                res.cookie('spotify_code_verifier', codeVerifier, { ...baseCookie, maxAge: 10 * 60 * 1000 });
+                const rawState = crypto.randomBytes(16).toString('hex');
+                const redirectTarget = '/dashboard';
+                const state = `${rawState}|${encodeURIComponent(redirectTarget)}`;
+                res.cookie('spotify_auth_state', state, { ...baseCookie, maxAge: 10 * 60 * 1000 });
+                const authUrl = new URL('https://accounts.spotify.com/authorize');
+                authUrl.searchParams.set('client_id', clientId);
+                authUrl.searchParams.set('response_type', 'code');
+                authUrl.searchParams.set('redirect_uri', redirectUri);
+                authUrl.searchParams.set('state', state);
+                authUrl.searchParams.set('scope', scope);
+                authUrl.searchParams.set('code_challenge_method', 'S256');
+                authUrl.searchParams.set('code_challenge', codeChallenge);
+                return authUrl.toString();
+            }
+            catch (e) {
+                console.warn('Failed to build reauthorize URL', e?.message ?? e);
+                return null;
+            }
+        };
         // Global feature weighting to make prompt-derived valence/energy more influential
         const featureWeights = [1, 2.0, 2.0, 0.8, 0.6, 0.3, 0.3, 0.4];
         if (vibeText && vibeText.trim().length > 0) {
@@ -102,21 +185,67 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                         }
                     }
                     catch (e) {
+                        const se = e;
+                        console.warn('Failed to fetch audio features chunk', se.status, se.payload?.error?.message ?? se.payload?.error ?? se.payload ?? se.message ?? se);
+                        // log full error inspect to help debug 403 payloads (safe for circular structures)
                         try {
-                            // If this is a SpotifyApiError it may include status and payload
-                            const se = e;
-                            if (se && se.status) {
-                                console.warn('Failed to fetch audio features chunk', se.status, se.payload ?? se.message ?? se);
+                            console.warn('Full spotify audio-features error:', util.inspect(se, { depth: null, colors: false }));
+                            if (se && se.response) {
+                                console.warn('Spotify audio-features response status:', se.response.status);
+                                console.warn('Spotify audio-features response data:', util.inspect(se.response.data, { depth: null, colors: false }));
+                                // persist to a file for easier retrieval from the environment
+                                if (se.response && se.response.status === 403)
+                                    reauthNeeded = true;
+                                writeDebugLog({ type: 'chunk', response: se.response && se.response.data ? se.response.data : se });
                             }
                             else {
-                                console.warn('Failed to fetch audio features chunk', e?.message ?? e);
+                                writeDebugLog({ type: 'chunk', error: se });
                             }
                         }
                         catch (logErr) {
-                            console.warn('Failed to fetch audio features chunk (unknown error)');
+                            // ignore logging errors
                         }
                     }
                 }
+                // If Spotify audio-features failed for some tracks (or returned partial results),
+                // try to fill missing audio features by matching tracks in our Track DB
+                // using `spotifyTrackId` or a fallback match by name + first artist.
+                const fillFeaturesFromDb = async (tracks, targetMap) => {
+                    try {
+                        const needIds = tracks.map((t) => t.id).filter(Boolean).filter((id) => !targetMap[id]);
+                        if (needIds.length === 0)
+                            return;
+                        // First try to find exact spotifyTrackId matches in bulk
+                        const found = await TrackModel.find({ spotifyTrackId: { $in: needIds } }).lean().exec();
+                        for (const f of found) {
+                            const sid = f.spotifyTrackId;
+                            if (sid)
+                                targetMap[sid] = f.audioFeatures || {};
+                        }
+                        // For any remaining ids, try matching by name + first artist
+                        const remaining = tracks.filter((t) => t.id && !targetMap[t.id]);
+                        for (const t of remaining) {
+                            try {
+                                const firstArtist = (t.artists && t.artists[0] && (t.artists[0].name || t.artists[0])) || '';
+                                const cand = await TrackModel.findOne({
+                                    name: t.name,
+                                    'artists.name': firstArtist,
+                                }).lean().exec();
+                                if (cand) {
+                                    const sid = t.id;
+                                    targetMap[sid] = cand.audioFeatures || {};
+                                }
+                            }
+                            catch (inner) {
+                                // ignore per-track lookup errors
+                            }
+                        }
+                    }
+                    catch (dbErr) {
+                        console.warn('Failed to fill audio-features from DB', dbErr?.message ?? dbErr);
+                    }
+                };
+                await fillFeaturesFromDb(userTracks, featuresMapLocal);
                 // Weighted similarity: when a prompt-derived target vector exists, emphasize
                 // valence and energy so the user's free-text sentiment has stronger effect.
                 const featureWeights = [1, 2.0, 2.0, 0.8, 0.6, 0.3, 0.3, 0.4];
@@ -266,8 +395,24 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                 }
             }
             catch (e) {
-                // ignore audio-features failure
-                console.warn('Failed to fetch audio features for sample', e?.message ?? e);
+                // ignore audio-features failure but log details to help debugging
+                const se = e;
+                console.warn('Failed to fetch audio features for sample', se?.message ?? se);
+                try {
+                    if (se && se.response) {
+                        console.warn('Spotify audio-features (sample) response status:', se.response.status);
+                        console.warn('Spotify audio-features (sample) response data:', JSON.stringify(se.response.data));
+                        if (se.response && se.response.status === 403)
+                            reauthNeeded = true;
+                        writeDebugLog({ type: 'sample', response: se.response.data });
+                    }
+                    else {
+                        writeDebugLog({ type: 'sample', error: se });
+                    }
+                }
+                catch (logErr) {
+                    // ignore
+                }
             }
         }
         const mapped = songs.map((t) => {
@@ -298,7 +443,7 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                 for (const ex of extras) {
                     if (mapped.length >= desired)
                         break;
-                    const sid = ex.spotifyTrackId || ex.spotify_track_id || ex.spotifyId;
+                    const sid = ex.spotifyTrackId;
                     if (!sid)
                         continue;
                     if (excludeIds.has(sid))
@@ -448,7 +593,15 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                 songs: combined,
             };
             console.log('AI generate returning description:', playlistFinal.description);
-            return res.json({ playlist: playlistFinal });
+            const out = { playlist: playlistFinal };
+            if (reauthNeeded) {
+                const url = buildReauthorizeUrl(res);
+                if (url)
+                    out.reauthorizeUrl = url;
+                else
+                    out.reauthorizeRecommended = true;
+            }
+            return res.json(out);
         }
         catch (dbErr) {
             console.warn('Failed to load similar tracks from DB', dbErr?.message ?? dbErr);
@@ -459,7 +612,15 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                 songs: mapped,
             };
             console.log('AI generate returning fallback description:', fallback.description);
-            return res.json({ playlist: fallback });
+            const out = { playlist: fallback };
+            if (reauthNeeded) {
+                const url = buildReauthorizeUrl(res);
+                if (url)
+                    out.reauthorizeUrl = url;
+                else
+                    out.reauthorizeRecommended = true;
+            }
+            return res.json(out);
         }
     }
     catch (err) {
@@ -468,49 +629,49 @@ export const generatePlaylistFromSpotify = async (req, res) => {
         const status = err?.status ?? err?.response?.status ?? 500;
         const payload = err?.payload ?? err?.response?.data ?? undefined;
         const msg = err?.message ?? payload?.message ?? 'Failed to generate playlist';
-        if (status === 403 && payload) {
-            const text = typeof payload === 'object' ? JSON.stringify(payload) : String(payload);
-            if (text.includes('Insufficient client scope') || text.includes('insufficient_scope')) {
-                // Attempt to generate a server-side PKCE pair and return an authorization URL
-                try {
-                    const clientId = process.env.SPOTIFY_CLIENT_ID;
-                    const redirectUri = process.env.SPOTIFY_REDIRECT_URI;
-                    const scope = "user-read-email user-read-private user-library-read playlist-modify-public playlist-modify-private";
-                    const base64Url = (buf) => buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-                    const codeVerifier = base64Url(crypto.randomBytes(64));
-                    const codeChallenge = base64Url(crypto.createHash('sha256').update(codeVerifier).digest());
-                    const cookieSecure = process.env.COOKIE_SECURE !== 'false';
-                    const baseCookie = {
-                        httpOnly: true,
-                        secure: cookieSecure,
-                        sameSite: cookieSecure ? 'none' : 'lax',
-                    };
-                    res.cookie('spotify_code_verifier', codeVerifier, { ...baseCookie, maxAge: 10 * 60 * 1000 });
-                    const rawState = crypto.randomBytes(16).toString('hex');
-                    const redirectTarget = '/dashboard';
-                    const state = `${rawState}|${encodeURIComponent(redirectTarget)}`;
-                    res.cookie('spotify_auth_state', state, { ...baseCookie, maxAge: 10 * 60 * 1000 });
-                    const authUrl = new URL('https://accounts.spotify.com/authorize');
-                    authUrl.searchParams.set('client_id', clientId);
-                    authUrl.searchParams.set('response_type', 'code');
-                    authUrl.searchParams.set('redirect_uri', redirectUri);
-                    authUrl.searchParams.set('state', state);
-                    authUrl.searchParams.set('scope', scope);
-                    authUrl.searchParams.set('code_challenge_method', 'S256');
-                    authUrl.searchParams.set('code_challenge', codeChallenge);
-                    return res.status(403).json({
-                        error: 'insufficient_spotify_scope',
-                        message: 'Spotify access token is missing required scopes. Reauthorization is required.',
-                        reauthorizeUrl: authUrl.toString(),
-                    });
-                }
-                catch (e) {
-                    console.warn('Failed to construct reauthorize URL', e?.message ?? e);
-                    return res.status(403).json({
-                        error: 'insufficient_spotify_scope',
-                        message: 'Spotify access token is missing required scopes (user-library-read). Please re-link your Spotify account and grant the requested permissions.'
-                    });
-                }
+        if (status === 403) {
+            // If Spotify returned 403 for audio-features, offer a reauthorization flow.
+            // Even if the payload wasn't explicit about insufficient scope, reauthorization
+            // is the safest user-facing recovery: tokens may have lost scopes or otherwise
+            // be invalid for the needed API surface.
+            try {
+                const clientId = process.env.SPOTIFY_CLIENT_ID;
+                const redirectUri = process.env.SPOTIFY_REDIRECT_URI;
+                const scope = "user-read-email user-read-private user-library-read playlist-modify-public playlist-modify-private";
+                const base64Url = (buf) => buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+                const codeVerifier = base64Url(crypto.randomBytes(64));
+                const codeChallenge = base64Url(crypto.createHash('sha256').update(codeVerifier).digest());
+                const cookieSecure = process.env.COOKIE_SECURE !== 'false';
+                const baseCookie = {
+                    httpOnly: true,
+                    secure: cookieSecure,
+                    sameSite: cookieSecure ? 'none' : 'lax',
+                };
+                res.cookie('spotify_code_verifier', codeVerifier, { ...baseCookie, maxAge: 10 * 60 * 1000 });
+                const rawState = crypto.randomBytes(16).toString('hex');
+                const redirectTarget = '/dashboard';
+                const state = `${rawState}|${encodeURIComponent(redirectTarget)}`;
+                res.cookie('spotify_auth_state', state, { ...baseCookie, maxAge: 10 * 60 * 1000 });
+                const authUrl = new URL('https://accounts.spotify.com/authorize');
+                authUrl.searchParams.set('client_id', clientId);
+                authUrl.searchParams.set('response_type', 'code');
+                authUrl.searchParams.set('redirect_uri', redirectUri);
+                authUrl.searchParams.set('state', state);
+                authUrl.searchParams.set('scope', scope);
+                authUrl.searchParams.set('code_challenge_method', 'S256');
+                authUrl.searchParams.set('code_challenge', codeChallenge);
+                return res.status(403).json({
+                    error: 'insufficient_spotify_scope_or_invalid_token',
+                    message: 'Spotify access token appears invalid or is missing required scopes. Reauthorization is recommended.',
+                    reauthorizeUrl: authUrl.toString(),
+                });
+            }
+            catch (e) {
+                console.warn('Failed to construct reauthorize URL', e?.message ?? e);
+                return res.status(403).json({
+                    error: 'insufficient_spotify_scope',
+                    message: 'Spotify access token may be missing required scopes (user-library-read). Please re-link your Spotify account and grant the requested permissions.'
+                });
             }
         }
         return res.status(status).json({ error: 'ai_generate_failed', message: msg });

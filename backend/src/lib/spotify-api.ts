@@ -105,6 +105,10 @@ export class SpotifyApiClient {
     attempt = 0,
   ): Promise<AxiosResponse<T>> {
     const accessToken = await this.tokenManager.getAccessToken();
+    try {
+      const masked = accessToken ? `${String(accessToken).slice(0,6)}...${String(accessToken).slice(-6)}` : null;
+      console.log('SpotifyApiClient.request - sending Authorization Bearer token present:', Boolean(accessToken), 'masked:', masked, 'attempt:', attempt);
+    } catch (e) {}
     let response: AxiosResponse<T>;
 
     try {
@@ -119,7 +123,11 @@ export class SpotifyApiClient {
       throw this.toApiError(error);
     }
 
-    if (response.status === 401 && attempt === 0 && this.tokenManager.refreshAccessToken) {
+    // If unauthorized or forbidden, attempt a single refresh+retry when a
+    // refresh function is available. Some Spotify responses return 403 for
+    // invalid/expired tokens in practice; include 403 here to recover where
+    // appropriate.
+    if ((response.status === 401 || response.status === 403) && attempt === 0 && this.tokenManager.refreshAccessToken) {
       return this.handleUnauthorized<T>(config);
     }
 
