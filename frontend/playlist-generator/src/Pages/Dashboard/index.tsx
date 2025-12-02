@@ -597,7 +597,7 @@ Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studyin
                 value={moodInput}
                 onChange={(e) => setMoodInput(e.target.value)}
                 rows={4}
-                style={{ width: '100%', resize: 'vertical' }}
+                style={{ width: '100%' }}
                 disabled={loading}
               />
               <button
