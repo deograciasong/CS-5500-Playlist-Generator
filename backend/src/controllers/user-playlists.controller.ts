@@ -49,6 +49,23 @@ function extractPlaylistPayload(body: any) {
   };
 }
 
+function extractPlaylistUpdate(body: any) {
+  const playlist = body?.playlist ?? body;
+  if (!playlist) return null;
+
+  const update: Record<string, any> = {};
+  if (typeof playlist.mood === "string") {
+    const mood = playlist.mood.trim();
+    if (mood.length === 0) return null;
+    update["playlist.mood"] = mood;
+  }
+  if (typeof playlist.description === "string") {
+    update["playlist.description"] = playlist.description;
+  }
+
+  return Object.keys(update).length > 0 ? update : null;
+}
+
 export const createSavedPlaylist = async (req: Request, res: Response) => {
   const authReq = req as AuthenticatedRequest;
   const playlist = extractPlaylistPayload(req.body);
@@ -108,6 +125,38 @@ export const getSavedPlaylistById = async (req: Request, res: Response) => {
   }
 };
 
+export const updateSavedPlaylist = async (req: Request, res: Response) => {
+  const authReq = req as AuthenticatedRequest;
+  const { id } = req.params;
+
+  if (!mongoose.isValidObjectId(id)) {
+    res.status(400).json({ error: "invalid_playlist_id" });
+    return;
+  }
+
+  const update = extractPlaylistUpdate(req.body);
+  if (!update) {
+    res.status(400).json({ error: "invalid_update_payload", message: "mood or description is required" });
+    return;
+  }
+
+  try {
+    const doc = await SavedPlaylist.findOneAndUpdate(
+      { _id: id, userId: authReq.authUserId },
+      { $set: update },
+      { new: true },
+    );
+    if (!doc) {
+      res.status(404).json({ error: "playlist_not_found" });
+      return;
+    }
+    res.json({ playlist: toResponse(doc) });
+  } catch (err) {
+    console.error("Failed to update playlist", err);
+    res.status(500).json({ error: "failed_to_update_playlist", message: "Unable to update playlist" });
+  }
+};
+
 export const deleteSavedPlaylist = async (req: Request, res: Response) => {
   const authReq = req as AuthenticatedRequest;
   const { id } = req.params;
@@ -134,5 +183,6 @@ export default {
   createSavedPlaylist,
   listSavedPlaylists,
   getSavedPlaylistById,
+  updateSavedPlaylist,
   deleteSavedPlaylist,
 };

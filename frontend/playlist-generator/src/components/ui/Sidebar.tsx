@@ -87,6 +87,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     rawName = user.displayName;
                   } else if ('display_name' in user && user.display_name) {
                     rawName = user.display_name;
+                  } else if ('name' in user && (user as any).name) {
+                    rawName = (user as any).name;
                   } else if (user.email) {
                     rawName = user.email.split('@')[0];
                   } else if ('id' in user) {
@@ -100,10 +102,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 // Type-safe image access
                 let imageUrl = null;
                 if (user) {
-                  if ('profileImage' in user) {
+                  const spotifyProfile = (user as any)?.spotifyProfile;
+                  const spotifyImages = Array.isArray(spotifyProfile?.images) ? spotifyProfile.images : null;
+
+                  if ('profileImage' in user && user.profileImage) {
                     imageUrl = user.profileImage;
+                  } else if ('image' in user && (user as any).image) {
+                    imageUrl = (user as any).image;
                   } else if (isSpotifyUser(user) && user.images && user.images.length > 0) {
                     imageUrl = user.images[0].url;
+                  } else if (Array.isArray((user as any)?.images) && (user as any).images.length > 0) {
+                    imageUrl = (user as any).images[0]?.url ?? null;
+                  } else if (spotifyImages && spotifyImages.length > 0) {
+                    imageUrl = spotifyImages[0]?.url ?? null;
                   }
                 }
 

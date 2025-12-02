@@ -1520,26 +1520,76 @@ body {
 
 .playlist-header-section {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 25px;
   margin-bottom: 40px;
 }
 
 .playlist-icon-large {
-  width: 140px;
-  height: 140px;
+  width: 260px;
+  min-height: 260px;
+  height: auto;
+  align-self: stretch;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 70px;
+  font-size: 120px;
   box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
   flex-shrink: 0;
 }
 
 .playlist-header-info {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.playlist-title-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 14px 16px;
+  color: #fff;
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 12px 0;
+}
+
+.playlist-title-input:focus {
+  outline: none;
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.25);
+}
+
+.playlist-description-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 15px;
+  min-height: 72px;
+  resize: vertical;
+  margin: 0 0 10px 0;
+}
+
+.playlist-description-input:focus {
+  outline: none;
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+}
+
+.playlist-title-input:disabled,
+.playlist-description-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .playlist-main-title {
@@ -1565,7 +1615,9 @@ body {
 .playlist-actions-bar {
   display: flex;
   gap: 15px;
-  margin-bottom: 40px;
+  margin-top: 24px;
+  margin-bottom: 0;
+  flex-wrap: wrap;
 }
 
 .playlist-action-btn {
@@ -1607,6 +1659,9 @@ body {
   border-radius: 15px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.playlist-content-inner {
   max-width: 1100px;
   margin: 0 auto;
 }
@@ -1740,8 +1795,9 @@ body {
     padding: 80px 20px 40px 20px;
   }
 
-  .playlist-main-title {
-    font-size: 36px;
+  .playlist-main-title,
+  .playlist-title-input {
+    font-size: 32px;
   }
 
   .playlist-icon-large {
@@ -1771,8 +1827,9 @@ body {
     text-align: left;
   }
 
-  .playlist-main-title {
-    font-size: 28px;
+  .playlist-main-title,
+  .playlist-title-input {
+    font-size: 24px;
   }
 
   .playlist-action-btn {

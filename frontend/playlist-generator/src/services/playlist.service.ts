@@ -1,13 +1,14 @@
 import api from '../services/api';
 import type { Playlist } from '../types';
+import type { PlaylistResult } from '../types/song.types';
 
 export const playlistService = {
-  generatePlaylist: async (moodInput: string): Promise<Playlist> => {
+  generatePlaylist: async (moodInput: string): Promise<PlaylistResult> => {
     const response = await api.post('/spotify/playlists/generate', { moodInput });
     return response.data.playlist;
   },
 
-  generateFromSpotify: async (vibeText?: string): Promise<Playlist> => {
+  generateFromSpotify: async (vibeText?: string): Promise<PlaylistResult> => {
     // Backend should implement a Spotify-library based generator at this route.
     const payload: any = { useSpotify: true };
     if (vibeText) payload.vibeText = vibeText;
