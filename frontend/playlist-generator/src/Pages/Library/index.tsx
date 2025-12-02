@@ -1,25 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../../components/ui/Sidebar';
 import { Background } from '../../components/ui/Background';
-import { playlistStorage, SavedPlaylist } from '../../services/playlistStorage.service';
+import { SavedPlaylist, useSavedPlaylists } from '../../services/playlistStorage.service';
 import '../../main.css';
 
 export const Library: React.FC = () => {
   const navigate = useNavigate();
-  const [savedPlaylists, setSavedPlaylists] = useState<SavedPlaylist[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { playlists: savedPlaylists, loading, error, deletePlaylist } = useSavedPlaylists();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  useEffect(() => {
-    loadPlaylists();
-  }, []);
-
-  const loadPlaylists = () => {
-    const playlists = playlistStorage.getAllPlaylists();
-    setSavedPlaylists(playlists);
-    setLoading(false);
-  };
 
   const handleLogout = () => {
     console.log('Logged out');
@@ -31,12 +20,19 @@ export const Library: React.FC = () => {
     navigate('/playlist', { state: { playlist: savedPlaylist.playlist } });
   };
 
-  const handleDeletePlaylist = (id: string, e: React.MouseEvent) => {
+  const handleDeletePlaylist = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening the playlist
     
     if (window.confirm('Delete this playlist?')) {
-      playlistStorage.deletePlaylist(id);
-      loadPlaylists(); // Reload the list
+      try {
+        await deletePlaylist(id);
+      } catch (err: any) {
+        const message =
+          err?.response?.data?.message ??
+          err?.message ??
+          'Failed to delete playlist';
+        alert(message);
+      }
     }
   };
 
@@ -137,6 +133,12 @@ export const Library: React.FC = () => {
             {savedPlaylists.length} {savedPlaylists.length === 1 ? 'playlist' : 'playlists'} saved
           </p>
         </div>
+
+        {error && (
+          <div className="save-error-banner">
+            {error}
+          </div>
+        )}
 
         {savedPlaylists.length === 0 ? (
           <div className="empty-library">

@@ -1,11 +1,14 @@
-import { Document, Model } from "mongoose";
+import { type Document, type Model } from "mongoose";
 export interface LocalUserDoc extends Document {
     name: string;
     email: string;
     passwordHash: string;
+    spotifyLinked: boolean;
+    spotifyId?: string;
+    spotifyProfile?: any;
+    createdAt: Date;
+    updatedAt: Date;
     verifyPassword(password: string): Promise<boolean>;
-    createdAt?: Date;
-    updatedAt?: Date;
 }
 export interface LocalUserModel extends Model<LocalUserDoc> {
     createWithPassword(payload: {

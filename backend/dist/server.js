@@ -6,6 +6,7 @@ import connectDB from "./config/db.js";
 import authRoutes from "./routes/auth.js";
 import spotifyUserRoutes from "./routes/spotify-user.js";
 import spotifyPlaylistRoutes from "./routes/spotify-playlists.js";
+import userPlaylistRoutes from "./routes/user-playlists.js";
 const app = express();
 const frontendOrigin = process.env.FRONTEND_URL ?? process.env.FRONTEND_ORIGIN ?? "http://localhost:5173";
 const allowedOrigins = frontendOrigin.split(",").map((o) => o.trim()).filter(Boolean);
@@ -46,6 +47,7 @@ connectDB();
 app.use("/api/auth", authRoutes);
 app.use("/api/spotify", spotifyUserRoutes);
 app.use("/api/spotify/playlists", spotifyPlaylistRoutes);
+app.use("/api/playlists", userPlaylistRoutes);
 const PORT = process.env.PORT ?? 5001;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
