@@ -24,6 +24,17 @@ export const playlistStorage = {
     return normalize(response.data?.playlist ?? response.data);
   },
 
+  async updatePlaylist(
+    id: string,
+    payload: Partial<Pick<PlaylistResult, 'mood' | 'description'>>,
+  ): Promise<SavedPlaylist> {
+    const body: any = { playlist: {} };
+    if (typeof payload.mood === 'string') body.playlist.mood = payload.mood;
+    if (typeof payload.description === 'string') body.playlist.description = payload.description;
+    const response = await api.put(`/playlists/${id}`, body);
+    return normalize(response.data?.playlist ?? response.data);
+  },
+
   async getAllPlaylists(): Promise<SavedPlaylist[]> {
     const response = await api.get('/playlists');
     const payload = response.data?.playlists ?? response.data ?? [];
@@ -76,6 +87,12 @@ export function useSavedPlaylists(options: { autoLoad?: boolean } = {}) {
     return saved;
   }, []);
 
+  const updatePlaylistInLibrary = useCallback(async (id: string, payload: Partial<Pick<PlaylistResult, 'mood' | 'description'>>) => {
+    const updated = await playlistStorage.updatePlaylist(id, payload);
+    setPlaylists((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    return updated;
+  }, []);
+
   const deletePlaylistFromLibrary = useCallback(async (id: string) => {
     await playlistStorage.deletePlaylist(id);
     setPlaylists((prev) => prev.filter((p) => p.id !== id));
@@ -91,6 +108,7 @@ export function useSavedPlaylists(options: { autoLoad?: boolean } = {}) {
     error,
     reload,
     savePlaylist: savePlaylistToLibrary,
+    updatePlaylist: updatePlaylistInLibrary,
     deletePlaylist: deletePlaylistFromLibrary,
     getPlaylistById,
   };

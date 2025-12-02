@@ -17,7 +17,7 @@ export const Library: React.FC = () => {
 
   const handlePlaylistClick = (savedPlaylist: SavedPlaylist) => {
     // Navigate to playlist page with the saved playlist data
-    navigate('/playlist', { state: { playlist: savedPlaylist.playlist, savedId: savedPlaylist.id } });
+    navigate('/playlist', { state: { playlist: savedPlaylist.playlist, savedId: savedPlaylist.id, fromLibrary: true } });
   };
 
   const handleDeletePlaylist = async (id: string, e: React.MouseEvent) => {
