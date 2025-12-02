@@ -4,16 +4,19 @@ import { Sidebar } from '../../components/ui/Sidebar';
 import { Background } from '../../components/ui/Background';
 import { authService } from '../../services/auth.service';
 import type { User, SpotifyUserProfile } from '../../types/index';
+import { playlistStorage, SavedPlaylist } from '../../services/playlistStorage.service';
 import '../../main.css';
 
 export const AnalyticsPage: React.FC = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | SpotifyUserProfile | null>(null);
+  const [savedPlaylists, setSavedPlaylists] = useState<SavedPlaylist[]>([]);
   const [loading, setLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     loadUser();
+    loadPlaylists();
   }, []);
 
   const loadUser = async () => {
@@ -28,6 +31,18 @@ export const AnalyticsPage: React.FC = () => {
     }
   };
 
+    const loadPlaylists = async () => {
+      try {
+        const playlists = await playlistStorage.getAllPlaylists();
+        setSavedPlaylists(playlists);
+      } catch (err) {
+        console.error('Failed to load playlists:', err);
+        setSavedPlaylists([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
   const handleLogout = () => {
     authService.logout();
     navigate('/');
@@ -35,7 +50,6 @@ export const AnalyticsPage: React.FC = () => {
 
   // Mock analytics data
   const stats = {
-    totalPlaylists: 24,
     totalSongs: 487,
     hoursListened: 142,
     favoriteGenre: 'Indie Rock',
@@ -128,7 +142,7 @@ export const AnalyticsPage: React.FC = () => {
           <div className="stat-card">
             <div className="stat-icon">🎵</div>
             <div className="stat-content">
-              <div className="stat-value">{stats.totalPlaylists}</div>
+              <div className="stat-value">{savedPlaylists.length}</div>
               <div className="stat-label">Playlists Created</div>
             </div>
           </div>
