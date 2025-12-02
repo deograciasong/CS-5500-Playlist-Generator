@@ -284,6 +284,20 @@ const getGreeting = () => {
       }, 250);
     } catch (err: any) {
       console.error('AI generate error', err);
+
+      // If backend indicates insufficient Spotify scopes, it may return
+      // `{ error: 'insufficient_spotify_scope', reauthorizeUrl: 'https://...' }`.
+      const respData = err?.response?.data;
+      const errCode = respData?.error ?? err?.code ?? null;
+      const reauthUrl = respData?.reauthorizeUrl ?? respData?.reauthorize_url ?? null;
+
+      if (errCode === 'insufficient_spotify_scope' && reauthUrl) {
+        // Redirect the browser to the server-provided reauthorization URL so
+        // the server-set PKCE verifier/state cookies are available for the callback.
+        window.location.href = reauthUrl;
+        return;
+      }
+
       setError('Failed to generate AI playlist. Please try again.');
     } finally {
       setLoading(false);
