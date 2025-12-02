@@ -5,7 +5,9 @@ import { analyzeMood } from '../../services/mood.service';
 import { filterSongsByMood } from '../../services/songRecommendation.service';
 import { Background } from '../../components/ui/Background';
 import { authService } from '../../services/auth.service';
-import type { SpotifyUserProfile, User } from '../../types/index.ts';
+import api from '../../services/api';
+import { playlistService } from '../../services/playlist.service';
+import type { SpotifyUserProfile, User } from '../../types';
 import type { Song } from '../../types/song.types';
 import '../../main.css';
 
@@ -13,6 +15,7 @@ const toolTabs = [
   '🎧 Mood Assistant',
   '⚡ Quick Vibe',
   '🎹 Mood Mix',
+  '🤖 Let AI decide',
 ];
 
 const examplePrompts = [
@@ -44,7 +47,6 @@ export const Dashboard: React.FC = () => {
   const [loadingUser, setLoadingUser] = useState(true);
   const [selectedMoods, setSelectedMoods] = useState<{[key: string]: boolean}>({});
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
 
   useEffect(() => {
     loadSongsData();
@@ -239,6 +241,70 @@ const getGreeting = () => {
   }
 };
 
+  const ensureSpotifyLinked = async (): Promise<boolean> => {
+    try {
+      await api.get('/spotify/me');
+      return true;
+    } catch (err: any) {
+      // Try refreshing the cookie-based token and retry once
+      try {
+        const refreshRes = await api.post('/auth/refresh');
+        // refresh endpoint returns 204 on success
+        if (refreshRes.status === 204) {
+          await api.get('/spotify/me');
+          return true;
+        }
+      } catch (refreshErr) {
+        // ignore, we'll prompt linking below
+      }
+      return false;
+    }
+  };
+
+  const handleAIGenerate = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const linked = await ensureSpotifyLinked();
+      if (!linked) {
+        setLoading(false);
+        setError('Please link your Spotify account to use AI generation.');
+        // Offer linking immediately
+        const url = await authService.startSpotifyLogin();
+        // open in same tab so cookies are handled correctly
+        window.location.href = url;
+        return;
+      }
+
+      // Call backend generator that uses the user's Spotify library
+      const vibeText = moodInput && moodInput.trim().length > 0 ? moodInput.trim() : undefined;
+      const playlist = await playlistService.generateFromSpotify(vibeText);
+      // Navigate to playlist viewer
+      setTimeout(() => {
+        navigate('/playlist', { state: { playlist } });
+      }, 250);
+    } catch (err: any) {
+      console.error('AI generate error', err);
+
+      // If backend indicates insufficient Spotify scopes, it may return
+      // `{ error: 'insufficient_spotify_scope', reauthorizeUrl: 'https://...' }`.
+      const respData = err?.response?.data;
+      const errCode = respData?.error ?? err?.code ?? null;
+      const reauthUrl = respData?.reauthorizeUrl ?? respData?.reauthorize_url ?? null;
+
+      if (errCode === 'insufficient_spotify_scope' && reauthUrl) {
+        // Redirect the browser to the server-provided reauthorization URL so
+        // the server-set PKCE verifier/state cookies are available for the callback.
+        window.location.href = reauthUrl;
+        return;
+      }
+
+      setError('Failed to generate AI playlist. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
 const toggleMood = (mood: string) => {
   setSelectedMoods(prev => ({
     ...prev,
@@ -255,7 +321,7 @@ const renderTabContent = () => {
             <div className="input-wrapper">
               <textarea
                 className="main-input"
-                placeholder="Describe your mood and we'll create the perfect playlist from your Spotify library...
+                placeholder="Describe your mood and we'll create the perfect playlist for you...
 
 Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studying'"
                 value={moodInput}
@@ -418,9 +484,6 @@ Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studyin
     case 2: // Mood Mix
   return (
     <div style={{ marginTop: '2rem' }}>
-      <h3 style={{ color: 'white', marginBottom: '1rem', fontSize: '1.5rem', textAlign: 'center' }}>
-        🎹 Mood Mix
-      </h3>
       <p style={{ 
         color: 'rgba(255, 255, 255, 0.7)', 
         marginBottom: '2rem', 
@@ -519,6 +582,61 @@ Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studyin
     </div>
   );
 
+    case 3: // Let AI decide (placeholder)
+      return (
+      <>
+          <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: '1.5rem' }}>
+            Describe the vibe you want and let the AI will do the rest
+          </p>
+          <div className="input-section">
+           
+            <div className="input-wrapper">
+              <textarea
+                className="main-input"
+                placeholder="Describe a vibe: e.g. 'chill, lo-fi, rainy evening with soft piano'"
+                value={moodInput}
+                onChange={(e) => setMoodInput(e.target.value)}
+                rows={4}
+                style={{ width: '100%' }}
+                disabled={loading}
+              />
+              <button
+                className="send-button"
+                onClick={() => handleAIGenerate()}
+                disabled={loading}
+                aria-label="Generate from my vibe"
+              >
+                {loading ? (
+                  <div className="spinner"></div>
+                ) : (
+                  <svg viewBox="0 0 24 24">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <button
+            style={{
+              padding: '1rem 2rem',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              border: 'none',
+              borderRadius: '20px',
+              color: 'white',
+              fontSize: '1rem',
+              cursor: 'pointer',
+              opacity: loading ? 0.6 : 1,
+            }}
+            onClick={handleAIGenerate}
+            disabled={loading}
+          >
+            {loading ? 'Generating...' : 'Generate from my vibe'}
+          </button>
+</>
+        
+      );
+
     default:
       return null;
   }
@@ -539,6 +657,7 @@ Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studyin
         </div>
       </>
     );
+
   }
 
   return (
