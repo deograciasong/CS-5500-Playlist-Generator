@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from '../../components/ui/Sidebar';
 import { useSavedPlaylists } from '../../services/playlistStorage.service';
 import { playlistService } from '../../services/playlist.service';
+import type { User, SpotifyUserProfile } from '../../types/index';
+import { authService } from '../../services/auth.service';
 import type { PlaylistResult } from '../../types/song.types';
 import '../../main.css';
 
@@ -18,12 +20,23 @@ export const Playlist: React.FC = () => {
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportedUrl, setExportedUrl] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState<User | SpotifyUserProfile | null>(null);
 
   useEffect(() => {
     // Debug: Log when component mounts
+    loadUser();
     console.log('Playlist component mounted');
     console.log('Playlist data:', playlist);
   }, [playlist]);
+
+    const loadUser = async () => {
+      try {
+        const profile = await authService.getCurrentUser();
+        setUser(profile);
+      } catch (err) {
+        console.error('Failed to load user:', err);
+      }
+    };
 
   const handleLogout = () => {
     console.log('Logged out');
@@ -137,6 +150,7 @@ export const Playlist: React.FC = () => {
             onSignup={() => {}} 
             isAuthenticated={true} 
             onLogout={handleLogout} 
+            user={user}
           />
         </div>
         
@@ -179,6 +193,7 @@ export const Playlist: React.FC = () => {
           onSignup={() => {}} 
           isAuthenticated={true} 
           onLogout={handleLogout} 
+          user={user}
         />
       </div>
 

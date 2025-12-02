@@ -187,7 +187,7 @@ export const AccountSettings: React.FC = () => {
 
   const anyUser = user as any;
   const avatarUrl = anyUser?.profileImage ?? anyUser?.images?.[0]?.url ?? anyUser?.image ?? null;
-  const name = anyUser?.displayName ?? anyUser?.display_name ?? user.displayName ?? 'Unnamed';
+  const name = anyUser?.displayName ?? anyUser?.display_name ?? user.displayName;
   const initial = name?.[0]?.toUpperCase() ?? 'U';
   const spotifyProfile = anyUser?.spotifyProfile;
   const spotifyId = anyUser?.spotifyId;
@@ -236,7 +236,7 @@ export const AccountSettings: React.FC = () => {
                   CURRENT STATUS
                 </div>
                 <h2 style={{ color: 'white', fontSize: '2.5rem', fontWeight: '700', margin: '0 0 20px 0' }}>
-                  MoodTune Premium
+                  MoodTune Free
                 </h2>
                 <p style={{ color: 'rgba(255, 255, 255, 0.7)', marginBottom: '25px' }}>
                   Access to all features including mood-based playlist generation and Spotify integration.
