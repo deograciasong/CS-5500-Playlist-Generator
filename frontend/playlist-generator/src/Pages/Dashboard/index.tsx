@@ -321,7 +321,7 @@ const renderTabContent = () => {
             <div className="input-wrapper">
               <textarea
                 className="main-input"
-                placeholder="Describe your mood and we'll create the perfect playlist from your Spotify library...
+                placeholder="Describe your mood and we'll create the perfect playlist for you...
 
 Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studying'"
                 value={moodInput}
@@ -484,9 +484,6 @@ Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studyin
     case 2: // Mood Mix
   return (
     <div style={{ marginTop: '2rem' }}>
-      <h3 style={{ color: 'white', marginBottom: '1rem', fontSize: '1.5rem', textAlign: 'center' }}>
-        🎹 Mood Mix
-      </h3>
       <p style={{ 
         color: 'rgba(255, 255, 255, 0.7)', 
         marginBottom: '2rem', 
@@ -587,23 +584,37 @@ Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studyin
 
     case 3: // Let AI decide (placeholder)
       return (
-        <div style={{ marginTop: '2rem', textAlign: 'center' }}>
-          <h3 style={{ color: 'white', marginBottom: '1rem', fontSize: '1.5rem' }}>🤖 Let AI decide</h3>
+      <>
           <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: '1.5rem' }}>
-            Describe the vibe you want and the AI will pick 20 songs from your Spotify library
-            that match it, then add 5 similar recommendations from our dataset.
+            Describe the vibe you want and let the AI will do the rest
           </p>
-
-          <div style={{ maxWidth: 720, margin: '0 auto 1rem' }}>
-            <textarea
-              className="main-input"
-              placeholder="Describe a vibe: e.g. 'chill, lo-fi, rainy evening with soft piano'"
-              value={moodInput}
-              onChange={(e) => setMoodInput(e.target.value)}
-              rows={4}
-              style={{ width: '100%', resize: 'vertical' }}
-              disabled={loading}
-            />
+          <div className="input-section">
+           
+            <div className="input-wrapper">
+              <textarea
+                className="main-input"
+                placeholder="Describe a vibe: e.g. 'chill, lo-fi, rainy evening with soft piano'"
+                value={moodInput}
+                onChange={(e) => setMoodInput(e.target.value)}
+                rows={4}
+                style={{ width: '100%', resize: 'vertical' }}
+                disabled={loading}
+              />
+              <button
+                className="send-button"
+                onClick={() => handleAIGenerate()}
+                disabled={loading}
+                aria-label="Generate from my vibe"
+              >
+                {loading ? (
+                  <div className="spinner"></div>
+                ) : (
+                  <svg viewBox="0 0 24 24">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
 
           <button
@@ -622,7 +633,8 @@ Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studyin
           >
             {loading ? 'Generating...' : 'Generate from my vibe'}
           </button>
-        </div>
+</>
+        
       );
 
     default:

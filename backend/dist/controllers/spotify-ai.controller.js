@@ -1,5 +1,6 @@
 import { createSpotifyApiClient } from "../lib/spotify-api.js";
 import crypto from 'crypto';
+import analyzeVibeText from '../lib/vibe-analyzer.js';
 // @ts-ignore - Track model is a JS file without types
 import TrackModel from "../models/Track.js";
 import { createSpotifyTokenManager } from "./helpers/spotify-token-manager.js";
@@ -10,45 +11,214 @@ import { createSpotifyTokenManager } from "./helpers/spotify-token-manager.js";
 export const generatePlaylistFromSpotify = async (req, res) => {
     try {
         const api = createSpotifyApiClient(createSpotifyTokenManager(req, res));
-        // First request to learn total saved tracks
-        const head = await api.get("/me/tracks?limit=1&offset=0");
-        const total = typeof head.total === 'number' ? head.total : (Array.isArray(head.items) ? head.items.length : 0);
+        // Determine desired sample size and check for a vibe text request
         const desired = 20;
+        const vibeText = (req.body && req.body.vibeText) || req.query?.vibeText;
         let songs = [];
-        if (total === 0) {
-            songs = [];
-        }
-        else if (total <= desired) {
-            // Fetch all
-            const all = await api.get(`/me/tracks?limit=${total}&offset=0`);
-            const items = Array.isArray(all.items) ? all.items : [];
-            songs = items.map((it) => it.track).filter(Boolean);
+        let targetVec = null;
+        // Global feature weighting to make prompt-derived valence/energy more influential
+        const featureWeights = [1, 2.0, 2.0, 0.8, 0.6, 0.3, 0.3, 0.4];
+        if (vibeText && vibeText.trim().length > 0) {
+            // Use an external sentiment/vibe analyzer if configured, otherwise fall back
+            // to the local heuristic in `vibe-analyzer.ts`.
+            try {
+                console.log('AI vibeText:', JSON.stringify(vibeText));
+                targetVec = await analyzeVibeText(vibeText);
+            }
+            catch (e) {
+                console.warn('vibe analyzer failed, falling back to local matching', e?.message ?? e);
+                targetVec = null;
+            }
+            // Ensure we always have a non-zero compare vector (use neutral vector as fallback)
+            if (!targetVec || !Array.isArray(targetVec) || targetVec.length === 0) {
+                // neutral/default vector
+                targetVec = [0.5, 0.5, 0.5, 0.5, 0.05, 0.1, 0.05, (60 + 0.5 * 140) / 200];
+            }
+            // Fetch a broader, randomized sample of the user's saved tracks (up to N pages)
+            try {
+                const head = await api.get('/me/tracks?limit=1&offset=0');
+                const total = typeof head.total === 'number' ? head.total : 0;
+                const pageSize = 50;
+                const maxPages = Math.min(Math.ceil(total / pageSize) || 1, 6); // fetch up to 6 pages (up to 300 tracks)
+                // Choose up to `maxPages` distinct page offsets randomly across the user's library
+                const pageCount = Math.max(1, Math.min(maxPages, Math.ceil(total / pageSize)));
+                const pageIndices = new Set();
+                while (pageIndices.size < pageCount) {
+                    const maxIndex = Math.max(0, Math.floor(total / pageSize) - 1);
+                    const randPage = Math.floor(Math.random() * (maxIndex + 1));
+                    pageIndices.add(randPage);
+                }
+                const pages = Array.from(pageIndices).map(pi => api.get(`/me/tracks?limit=${pageSize}&offset=${pi * pageSize}`));
+                const pageResults = await Promise.all(pages);
+                let userTracks = [];
+                for (const p of pageResults) {
+                    const items = Array.isArray(p.items) ? p.items : [];
+                    userTracks = userTracks.concat(items.map((it) => it.track).filter(Boolean));
+                }
+                // Deduplicate by id
+                const seenIds = new Set();
+                userTracks = userTracks.filter((t) => {
+                    if (!t || !t.id)
+                        return false;
+                    if (seenIds.has(t.id))
+                        return false;
+                    seenIds.add(t.id);
+                    return true;
+                });
+                // Batch audio-features in chunks of 100
+                const ids = userTracks.map((t) => t.id).filter(Boolean);
+                const chunkSize = 100;
+                const featuresMapLocal = {};
+                for (let i = 0; i < ids.length; i += chunkSize) {
+                    const chunk = ids.slice(i, i + chunkSize);
+                    try {
+                        const feats = await api.get(`/audio-features?ids=${chunk.join(',')}`);
+                        const arr = Array.isArray(feats.audio_features) ? feats.audio_features : feats;
+                        if (Array.isArray(arr)) {
+                            arr.forEach((f) => { if (f && f.id)
+                                featuresMapLocal[f.id] = f; });
+                        }
+                    }
+                    catch (e) {
+                        console.warn('Failed to fetch audio features chunk', e?.message ?? e);
+                    }
+                }
+                // Weighted similarity: when a prompt-derived target vector exists, emphasize
+                // valence and energy so the user's free-text sentiment has stronger effect.
+                const featureWeights = [1, 2.0, 2.0, 0.8, 0.6, 0.3, 0.3, 0.4];
+                const dotWeighted = (a, b, w) => a.reduce((s, v, i) => s + (w[i] ?? 1) * v * (b[i] ?? 0), 0);
+                const normWeighted = (a, w) => Math.sqrt(a.reduce((s, v, i) => s + (w[i] ?? 1) * v * v, 0));
+                const dot = (a, b) => a.reduce((s, v, i) => s + v * (b[i] ?? 0), 0);
+                const norm = (a) => Math.sqrt(a.reduce((s, v) => s + v * v, 0));
+                const tv = targetVec ?? null;
+                let scored = userTracks.map((t) => {
+                    const f = featuresMapLocal[t.id] ?? {};
+                    const tempo = typeof f.tempo === 'number' ? f.tempo / 200 : 0;
+                    const vec = [
+                        (f.danceability ?? 0),
+                        (f.energy ?? 0),
+                        (f.valence ?? 0),
+                        (f.acousticness ?? 0),
+                        (f.instrumentalness ?? 0),
+                        (f.liveness ?? 0),
+                        (f.speechiness ?? 0),
+                        tempo,
+                    ];
+                    let similarity = 0;
+                    if (tv) {
+                        // use weighted cosine so valence/energy matter more for prompt-driven queries
+                        const tnn = normWeighted(tv, featureWeights);
+                        const vnn = normWeighted(vec, featureWeights);
+                        if (tnn === 0 || vnn === 0)
+                            similarity = 0;
+                        else
+                            similarity = dotWeighted(tv, vec, featureWeights) / (tnn * vnn);
+                    }
+                    else {
+                        similarity = (vec[1] + vec[2]) / 2;
+                    }
+                    return { track: t, similarity, vec };
+                }).filter((s) => s && s.track && s.track.id && typeof s.similarity === 'number');
+                // Remove tracks with zero-vector (no audio features) to improve variety
+                scored = scored.filter((s) => {
+                    const v = s.vec || [];
+                    const nonZero = v.some((x) => typeof x === 'number' && x !== 0);
+                    return nonZero;
+                });
+                // If not enough tracks after filtering, keep what we have and proceed.
+                // Previously we replaced scored with an unfiltered list (similarity=0),
+                // which masked prompt-based ranking. Keep available scored items (may be
+                // empty) and let DB filling add complementary tracks.
+                if (scored.length < desired) {
+                    console.warn('Not enough scored tracks after filtering audio features; available:', scored.length);
+                }
+                // Sort by similarity DESC
+                scored.sort((a, b) => b.similarity - a.similarity);
+                // To avoid always taking the same top-N, sample from topK candidates using weighted sampling
+                const topK = Math.min(80, Math.max(desired, scored.length));
+                const candidates = scored.slice(0, topK);
+                // Build weights (normalize similarities to positive weights)
+                const sims = candidates.map((c) => Math.max(0, c.similarity || 0));
+                const minSim = Math.min(...sims);
+                const eps = 1e-6;
+                const weights = sims.map(s => (s - minSim) + eps);
+                const totalWeight = weights.reduce((a, b) => a + b, 0);
+                const chosen = [];
+                const available = candidates.slice();
+                const availableWeights = weights.slice();
+                const pickOne = () => {
+                    if (available.length === 0)
+                        return null;
+                    const tw = availableWeights.reduce((a, b) => a + b, 0);
+                    let r = Math.random() * tw;
+                    for (let i = 0; i < available.length; i++) {
+                        const w = availableWeights[i] ?? 0;
+                        r -= w;
+                        if (r <= 0) {
+                            const item = available.splice(i, 1)[0];
+                            availableWeights.splice(i, 1);
+                            if (item)
+                                return item.track;
+                            return null;
+                        }
+                    }
+                    // fallback
+                    const it = available.splice(0, 1)[0];
+                    return it ? it.track : null;
+                };
+                while (chosen.length < desired && available.length > 0) {
+                    const pick = pickOne();
+                    if (!pick)
+                        break;
+                    chosen.push(pick);
+                }
+                songs = chosen.slice(0, desired);
+            }
+            catch (e) {
+                console.warn('Failed to fetch user tracks for vibe matching', e?.message ?? e);
+                songs = [];
+            }
         }
         else {
-            // Pick `desired` unique random offsets across [0, total-1]
-            const picks = new Set();
-            while (picks.size < desired) {
-                const idx = Math.floor(Math.random() * total);
-                picks.add(idx);
+            // First request to learn total saved tracks
+            const head = await api.get("/me/tracks?limit=1&offset=0");
+            const total = typeof head.total === 'number' ? head.total : (Array.isArray(head.items) ? head.items.length : 0);
+            let sampled = [];
+            if (total === 0) {
+                sampled = [];
             }
-            // Fetch each picked index individually (limit=1, offset=index)
-            const fetches = Array.from(picks).map(async (offset) => {
-                try {
-                    const page = await api.get(`/me/tracks?limit=1&offset=${offset}`);
-                    const item = Array.isArray(page.items) && page.items.length > 0 ? page.items[0] : null;
-                    return item ? item.track : null;
+            else if (total <= desired) {
+                // Fetch all
+                const all = await api.get(`/me/tracks?limit=${total}&offset=0`);
+                const items = Array.isArray(all.items) ? all.items : [];
+                sampled = items.map((it) => it.track).filter(Boolean);
+            }
+            else {
+                // Pick `desired` unique random offsets across [0, total-1]
+                const picks = new Set();
+                while (picks.size < desired) {
+                    const idx = Math.floor(Math.random() * total);
+                    picks.add(idx);
                 }
-                catch (e) {
-                    // ignore individual failures
-                    return null;
-                }
-            });
-            const results = await Promise.all(fetches);
-            songs = results.filter(Boolean);
+                // Fetch each picked index individually (limit=1, offset=index)
+                const fetches = Array.from(picks).map(async (offset) => {
+                    try {
+                        const page = await api.get(`/me/tracks?limit=1&offset=${offset}`);
+                        const item = Array.isArray(page.items) && page.items.length > 0 ? page.items[0] : null;
+                        return item ? item.track : null;
+                    }
+                    catch (e) {
+                        // ignore individual failures
+                        return null;
+                    }
+                });
+                const results = await Promise.all(fetches);
+                sampled = results.filter(Boolean);
+            }
+            songs = sampled.slice(0, desired);
         }
-        const sample = songs.slice(0, desired);
-        // Fetch audio features for sampled tracks in one batch (up to 100)
-        const ids = sample.map((t) => t.id).filter(Boolean);
+        // Fetch audio features for sampled Spotify tracks in one batch (up to 100)
+        const ids = songs.map((t) => t.id).filter(Boolean);
         let featuresMap = {};
         if (ids.length > 0) {
             try {
@@ -66,7 +236,7 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                 console.warn('Failed to fetch audio features for sample', e?.message ?? e);
             }
         }
-        const mapped = sample.map((t) => {
+        const mapped = songs.map((t) => {
             const f = featuresMap[t.id] ?? {};
             return {
                 track_id: t.id,
@@ -81,9 +251,47 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                 album_image: t.album?.images?.[0]?.url ?? null,
             };
         });
+        // If the user's saved tracks were fewer than desired, supplement with random
+        // tracks from our Track DB so we can always return `desired` samples.
+        if (mapped.length < desired) {
+            try {
+                const need = desired - mapped.length;
+                const excludeIds = new Set(mapped.map(s => s.track_id).filter(Boolean));
+                const extras = await TrackModel.aggregate([
+                    { $match: { spotifyTrackId: { $exists: true } } },
+                    { $sample: { size: need } },
+                ]);
+                for (const ex of extras) {
+                    if (mapped.length >= desired)
+                        break;
+                    const sid = ex.spotifyTrackId || ex.spotify_track_id || ex.spotifyId;
+                    if (!sid)
+                        continue;
+                    if (excludeIds.has(sid))
+                        continue;
+                    excludeIds.add(sid);
+                    const af = ex.audioFeatures || {};
+                    mapped.push({
+                        track_id: sid,
+                        track_name: ex.name || ex.title || 'Unknown',
+                        artists: (ex.artists || []).map((a) => a.name).join(', '),
+                        track_genre: ex.genre || '',
+                        energy: (af.energy ?? 0),
+                        valence: (af.valence ?? 0),
+                        duration_ms: ex.durationMs ?? ex.duration_ms ?? 0,
+                        spotify_uri: `spotify:track:${sid}`,
+                        album: ex.album?.name ?? '',
+                        album_image: ex.album?.images?.[0]?.url ?? null,
+                    });
+                }
+            }
+            catch (fillErr) {
+                console.warn('Failed to fill missing sample tracks from DB', fillErr?.message ?? fillErr);
+            }
+        }
         // Now find 5 similar songs from our Track DB
         try {
-            // Build centroid vector from sampled audio features
+            // Build centroid vector from sampled audio features (only used when no explicit targetVec)
             const vectorKeys = [
                 'danceability',
                 'energy',
@@ -94,8 +302,19 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                 'speechiness',
                 'tempo',
             ];
-            const sampleFeatures = sample.map((t) => {
-                const f = featuresMap[t.id] ?? {};
+            const sampleFeatures = mapped.map((m) => {
+                // mapped entries include energy/valence for DB extras and Spotify tracks
+                // For Spotify-origin entries, try featuresMap first
+                const f = (featuresMap[m.track_id] ?? null) || (m && {
+                    danceability: m.danceability,
+                    energy: m.energy,
+                    valence: m.valence,
+                    acousticness: m.acousticness,
+                    instrumentalness: m.instrumentalness,
+                    liveness: m.liveness,
+                    speechiness: m.speechiness,
+                    tempo: m.tempo,
+                }) || {};
                 const tempo = typeof f.tempo === 'number' ? f.tempo / 200 : 0; // normalize tempo
                 return [
                     (f.danceability ?? 0),
@@ -109,25 +328,30 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                 ];
             }).filter(arr => arr.length === vectorKeys.length);
             let centroid = Array(vectorKeys.length).fill(0);
-            if (sampleFeatures.length > 0) {
-                for (const vec of sampleFeatures) {
-                    if (!vec)
-                        continue;
-                    for (let i = 0; i < vec.length; i++) {
-                        centroid[i] = (centroid[i] ?? 0) + (vec[i] ?? 0);
+            if (!targetVec) {
+                if (sampleFeatures.length > 0) {
+                    for (const vec of sampleFeatures) {
+                        if (!vec)
+                            continue;
+                        for (let i = 0; i < vec.length; i++) {
+                            centroid[i] = (centroid[i] ?? 0) + (vec[i] ?? 0);
+                        }
                     }
+                    centroid = centroid.map(v => v / sampleFeatures.length);
                 }
-                centroid = centroid.map(v => v / sampleFeatures.length);
             }
             // Fetch candidate tracks from DB (only those with audioFeatures)
             const candidates = await TrackModel.find({ 'audioFeatures': { $exists: true } })
                 .select('spotifyTrackId name artists durationMs audioFeatures album')
                 .lean()
                 .exec();
-            const sampleIds = new Set(sample.map((t) => t.id));
-            // Cosine similarity helper
-            const dot = (a, b) => a.reduce((s, v, i) => s + v * (b[i] ?? 0), 0);
-            const norm = (a) => Math.sqrt(a.reduce((s, v) => s + v * v, 0));
+            const sampleIds = new Set(mapped.map((m) => m.track_id));
+            // Weighted cosine similarity helpers (use same `featureWeights` declared above)
+            const dotWeighted = (a, b, w) => a.reduce((s, v, i) => s + (w[i] ?? 1) * v * (b[i] ?? 0), 0);
+            const normWeighted = (a, w) => Math.sqrt(a.reduce((s, v, i) => s + (w[i] ?? 1) * v * v, 0));
+            // Choose vector to compare against: if a targetVec from the user's prompt exists,
+            // use it; otherwise use the centroid computed from the sampled songs.
+            const compareVec = targetVec ?? centroid;
             const scored = candidates.map((c) => {
                 const af = c.audioFeatures || {};
                 const tempo = typeof af.tempo === 'number' ? af.tempo / 200 : 0;
@@ -141,10 +365,23 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                     (af.speechiness ?? 0),
                     tempo,
                 ];
-                const similarity = (norm(centroid) === 0 || norm(vec) === 0) ? 0 : dot(centroid, vec) / (norm(centroid) * norm(vec));
+                const similarity = (normWeighted(compareVec, featureWeights) === 0 || normWeighted(vec, featureWeights) === 0)
+                    ? 0
+                    : dotWeighted(compareVec, vec, featureWeights) / (normWeighted(compareVec, featureWeights) * normWeighted(vec, featureWeights));
                 return { candidate: c, similarity };
             })
                 .filter((s) => s.candidate && !sampleIds.has(s.candidate.spotifyTrackId));
+            // Always log compareVec and top candidate similarities to help debug identical picks
+            try {
+                console.log('AI compareVec:', JSON.stringify(compareVec));
+                const sampleTopDebug = scored
+                    .slice(0, 20)
+                    .map((s) => ({ id: s.candidate.spotifyTrackId, sim: Number(s.similarity.toFixed(4)), name: s.candidate.name }));
+                console.log('AI top DB candidate sims:', JSON.stringify(sampleTopDebug, null, 2));
+            }
+            catch (dbgErr) {
+                // ignore debug errors
+            }
             scored.sort((a, b) => b.similarity - a.similarity);
             const top = scored.slice(0, 10).map((s) => s.candidate);
             // Pick up to 5 tracks and map to frontend shape, avoiding duplicates

@@ -43,7 +43,17 @@ export async function analyzeVibeText(text: string): Promise<TargetVec> {
   const txt = normalized.toLowerCase();
   const tokens = txt.split(/\W+/).filter(Boolean);
 
-  const wordLists: Record<string, string[]> = {
+  const wordLists: {
+    positive: string[];
+    negative: string[];
+    highEnergy: string[];
+    lowEnergy: string[];
+    acoustic: string[];
+    instrumental: string[];
+    angry: string[];
+    tempoFast: string[];
+    tempoSlow: string[];
+  } = {
     positive: ['happy','joy','joyful','upbeat','energetic','excited','party','dance','cheerful','bright','positive','love','fun','good','celebrate','sunny','warm','glad'],
     negative: ['sad','melancholic','lonely','depressed','bitter','angry','dark','melancholy','sorrow','tear','blue','down','gloom'],
     highEnergy: ['energetic','upbeat','fast','dance','party','intense','pumping','aggressive','rock','electronic','edm','club','driving'],
@@ -68,16 +78,30 @@ export async function analyzeVibeText(text: string): Promise<TargetVec> {
     if (wordLists.tempoSlow.includes(t)) tempoSlow++;
   }
 
-  const total = Math.max(1, pos + neg + highE + lowE + tempoFast + tempoSlow);
-  const sentimentScore = clamp(-1, 1, (pos - neg) / total);
-  const valence = (sentimentScore + 1) / 2; // 0..1
-  let energy = 0.5 + (highE - lowE) * 0.12 + (tempoFast - tempoSlow) * 0.08 - angry * 0.05;
+  // Compute sentiment using only explicit positive/negative tokens so that
+  // valence isn't diluted by energy/tempo tokens.
+  const sentimentTotal = Math.max(0, pos + neg);
+  // Raw sentiment in -1..1 when we have explicit tokens
+  const rawSentiment = sentimentTotal > 0 ? clamp(-1, 1, (pos - neg) / sentimentTotal) : 0;
+  // Strength: how many explicit sentiment tokens we saw; used to smooth extremes when
+  // only a few tokens are present. strength in [0,1].
+  const strength = Math.min(1, sentimentTotal / 4);
+  // Blend raw sentiment with neutral (0) based on strength, then map to 0..1 valence.
+  const valence = ((1 - strength) * 0) + (strength * rawSentiment);
+  const valence01 = (valence + 1) / 2; // 0..1
+
+  // Energy: start neutral then shift based on explicit energy tokens, tempo tokens,
+  // and 'angry' should increase energy (was previously subtracting).
+  let energy = 0.5 + (highE - lowE) * 0.15 + (tempoFast - tempoSlow) * 0.12 + angry * 0.15;
   energy = clamp01(energy);
 
-  // tempo guess: base 75..160 influenced by energy and tempo tokens
-  let tempo = 60 + energy * 140 + (tempoFast - tempoSlow) * 10 - (acoustic * 5);
+  // tempo guess: base influenced by energy and tempo tokens; acoustic lowers tempo.
+  let tempo = 60 + energy * 120 + (tempoFast - tempoSlow) * 20 - (acoustic * 10);
 
-  return buildVector({ valence, energy, tempo, acousticness: acoustic > 0 ? 0.8 : undefined, instrumentalness: instrumental > 0 ? 0.6 : undefined });
+  const opts: any = { valence: valence01, energy, tempo };
+  if (acoustic > 0) opts.acousticness = 0.8;
+  if (instrumental > 0) opts.instrumentalness = 0.6;
+  return buildVector(opts);
 }
 
 function extractNumber(obj: any, keys: string[]) {
@@ -110,7 +134,7 @@ function buildVector(opts: { valence?: number; energy?: number; tempo?: number; 
   const tempo = typeof opts.tempo === 'number' ? opts.tempo : (60 + energy * 140);
   const tempoNorm = tempo / 200;
 
-  const danceability = clamp01((energy * 0.6) + (valence * 0.4));
+  const danceability = clamp01((energy * 0.7) + (valence * 0.3));
 
   return [
     danceability,
