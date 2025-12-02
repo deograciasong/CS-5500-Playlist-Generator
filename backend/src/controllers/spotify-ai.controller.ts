@@ -12,7 +12,28 @@ import { createSpotifyTokenManager } from "./helpers/spotify-token-manager.js";
  */
 export const generatePlaylistFromSpotify = async (req: Request, res: Response) => {
   try {
-    const api = createSpotifyApiClient(createSpotifyTokenManager(req, res));
+    const tokenManager = createSpotifyTokenManager(req, res);
+    const api = createSpotifyApiClient(tokenManager);
+
+    // Try to proactively refresh the Spotify access token before heavy calls.
+    // This helps when the access token is expired but a refresh token exists.
+    if (typeof tokenManager.refreshAccessToken === 'function') {
+      try {
+        const refreshed = await tokenManager.refreshAccessToken();
+        if (refreshed && typeof tokenManager.persistToken === 'function') {
+          try {
+            await tokenManager.persistToken(refreshed);
+          } catch (pErr) {
+            console.warn('Failed to persist refreshed Spotify token', (pErr as any)?.message ?? pErr);
+          }
+        }
+        console.log('Spotify access token refreshed prior to AI generation');
+      } catch (refreshErr) {
+        console.warn('Spotify token refresh failed before AI generation', (refreshErr as any)?.message ?? refreshErr);
+        // don't abort here — downstream calls will surface auth errors and
+        // the controller will return a helpful reauthorize URL when needed.
+      }
+    }
 
     // Determine desired sample size and check for a vibe text request
     const desired = 20;
@@ -86,7 +107,17 @@ export const generatePlaylistFromSpotify = async (req: Request, res: Response) =
               arr.forEach((f: any) => { if (f && f.id) featuresMapLocal[f.id] = f; });
             }
           } catch (e) {
-            console.warn('Failed to fetch audio features chunk', (e as any)?.message ?? e);
+            try {
+              // If this is a SpotifyApiError it may include status and payload
+              const se: any = e;
+              if (se && se.status) {
+                console.warn('Failed to fetch audio features chunk', se.status, se.payload ?? se.message ?? se);
+              } else {
+                console.warn('Failed to fetch audio features chunk', (e as any)?.message ?? e);
+              }
+            } catch (logErr) {
+              console.warn('Failed to fetch audio features chunk (unknown error)');
+            }
           }
         }
 
@@ -424,20 +455,22 @@ export const generatePlaylistFromSpotify = async (req: Request, res: Response) =
       const combined = mapped.concat(added);
 
       const playlistFinal = {
-        mood: 'AI Playlist',
-        description: 'Generated from your Spotify library (random sample + similar additions)',
+        mood: 'AI',
+        description: 'Generated from your Spotify library (with some we think you would like)',
         songs: combined,
       };
 
+      console.log('AI generate returning description:', playlistFinal.description);
       return res.json({ playlist: playlistFinal });
     } catch (dbErr) {
       console.warn('Failed to load similar tracks from DB', (dbErr as any)?.message ?? dbErr);
       // Fallback to returning mapped sample only
       const fallback = {
-        mood: 'AI Playlist',
-        description: 'Generated from your Spotify library (random sample)',
+        mood: 'AI',
+        description: 'Generated from your Spotify library',
         songs: mapped,
       };
+      console.log('AI generate returning fallback description:', fallback.description);
       return res.json({ playlist: fallback });
     }
   } catch (err: any) {

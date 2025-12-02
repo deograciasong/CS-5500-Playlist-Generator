@@ -187,7 +187,15 @@ export const Library: React.FC = () => {
                 
                 <div className="library-card-content">
                   <h3 className="library-card-title">
-                    {savedPlaylist.playlist.mood} Playlist
+                    {(() => {
+                      const raw = (savedPlaylist.playlist.mood || '').toString().trim();
+                      // If mood is AI or AI Playlist (any case), show 'AI Playlist'
+                      if (/^ai(\s*playlist)?$/i.test(raw)) return 'AI Playlist';
+                      // If mood already contains 'playlist', leave as-is
+                      if (/playlist/i.test(raw)) return raw;
+                      // Default: append 'Playlist'
+                      return `${raw} Playlist`;
+                    })()}
                   </h3>
                   <p className="library-card-description">
                     {savedPlaylist.playlist.description}

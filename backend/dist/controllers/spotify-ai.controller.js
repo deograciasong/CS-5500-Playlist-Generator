@@ -10,7 +10,29 @@ import { createSpotifyTokenManager } from "./helpers/spotify-token-manager.js";
  */
 export const generatePlaylistFromSpotify = async (req, res) => {
     try {
-        const api = createSpotifyApiClient(createSpotifyTokenManager(req, res));
+        const tokenManager = createSpotifyTokenManager(req, res);
+        const api = createSpotifyApiClient(tokenManager);
+        // Try to proactively refresh the Spotify access token before heavy calls.
+        // This helps when the access token is expired but a refresh token exists.
+        if (typeof tokenManager.refreshAccessToken === 'function') {
+            try {
+                const refreshed = await tokenManager.refreshAccessToken();
+                if (refreshed && typeof tokenManager.persistToken === 'function') {
+                    try {
+                        await tokenManager.persistToken(refreshed);
+                    }
+                    catch (pErr) {
+                        console.warn('Failed to persist refreshed Spotify token', pErr?.message ?? pErr);
+                    }
+                }
+                console.log('Spotify access token refreshed prior to AI generation');
+            }
+            catch (refreshErr) {
+                console.warn('Spotify token refresh failed before AI generation', refreshErr?.message ?? refreshErr);
+                // don't abort here — downstream calls will surface auth errors and
+                // the controller will return a helpful reauthorize URL when needed.
+            }
+        }
         // Determine desired sample size and check for a vibe text request
         const desired = 20;
         const vibeText = (req.body && req.body.vibeText) || req.query?.vibeText;
@@ -80,7 +102,19 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                         }
                     }
                     catch (e) {
-                        console.warn('Failed to fetch audio features chunk', e?.message ?? e);
+                        try {
+                            // If this is a SpotifyApiError it may include status and payload
+                            const se = e;
+                            if (se && se.status) {
+                                console.warn('Failed to fetch audio features chunk', se.status, se.payload ?? se.message ?? se);
+                            }
+                            else {
+                                console.warn('Failed to fetch audio features chunk', e?.message ?? e);
+                            }
+                        }
+                        catch (logErr) {
+                            console.warn('Failed to fetch audio features chunk (unknown error)');
+                        }
                     }
                 }
                 // Weighted similarity: when a prompt-derived target vector exists, emphasize
@@ -409,20 +443,22 @@ export const generatePlaylistFromSpotify = async (req, res) => {
             }
             const combined = mapped.concat(added);
             const playlistFinal = {
-                mood: 'AI Playlist',
-                description: 'Generated from your Spotify library (random sample + similar additions)',
+                mood: 'AI',
+                description: 'Generated from your Spotify library (with some we think you would like)',
                 songs: combined,
             };
+            console.log('AI generate returning description:', playlistFinal.description);
             return res.json({ playlist: playlistFinal });
         }
         catch (dbErr) {
             console.warn('Failed to load similar tracks from DB', dbErr?.message ?? dbErr);
             // Fallback to returning mapped sample only
             const fallback = {
-                mood: 'AI Playlist',
-                description: 'Generated from your Spotify library (random sample)',
+                mood: 'AI',
+                description: 'Generated from your Spotify library',
                 songs: mapped,
             };
+            console.log('AI generate returning fallback description:', fallback.description);
             return res.json({ playlist: fallback });
         }
     }

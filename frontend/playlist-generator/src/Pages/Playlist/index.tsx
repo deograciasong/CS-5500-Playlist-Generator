@@ -205,7 +205,19 @@ export const Playlist: React.FC = () => {
         <div className="playlist-header-section">
           <div className="playlist-icon-large">🎵</div>
           <div className="playlist-header-info">
-            <h1 className="playlist-main-title">{playlist.mood} Playlist</h1>
+            {(() => {
+              const raw = (playlist.mood || '').toString().trim();
+              // If mood is AI (or AI Playlist), display exactly "AI" to avoid
+              // the duplicated "Playlist" suffix. Otherwise, if the mood string
+              // already contains the word "playlist", leave it as-is; otherwise
+              // append "Playlist" for clarity.
+              if (/^ai(\s*playlist)?$/i.test(raw)) {
+                return <h1 className="playlist-main-title">AI Playlist</h1>;
+              }
+              const hasPlaylist = /playlist/i.test(raw);
+              const title = hasPlaylist ? raw : `${raw} Playlist`;
+              return <h1 className="playlist-main-title">{title}</h1>;
+            })()}
             <p className="playlist-description">{playlist.description}</p>
             <p className="playlist-meta-info">
               {playlist.songs.length} songs • {formatDuration(totalDuration)}
