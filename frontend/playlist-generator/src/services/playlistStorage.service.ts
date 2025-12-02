@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useState } from 'react';
+import api from './api';
 import type { PlaylistResult } from '../types/song.types';
 
 export interface SavedPlaylist {
@@ -7,79 +9,89 @@ export interface SavedPlaylist {
   coverEmoji: string;
 }
 
-class PlaylistStorageService {
-  private readonly STORAGE_KEY = 'moodtune_saved_playlists';
-
-  /**
-   * Save a playlist to localStorage
-   */
-  savePlaylist(playlist: PlaylistResult): SavedPlaylist {
-    const savedPlaylists = this.getAllPlaylists();
-    
-    const newSavedPlaylist: SavedPlaylist = {
-      id: `playlist_${Date.now()}`,
-      playlist,
-      savedAt: new Date().toISOString(),
-      coverEmoji: this.getRandomEmoji(),
-    };
-
-    savedPlaylists.push(newSavedPlaylist);
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(savedPlaylists));
-    
-    return newSavedPlaylist;
-  }
-
-  /**
-   * Get all saved playlists
-   */
-  getAllPlaylists(): SavedPlaylist[] {
-    try {
-      const stored = localStorage.getItem(this.STORAGE_KEY);
-      if (!stored) return [];
-      return JSON.parse(stored);
-    } catch (error) {
-      console.error('Error loading playlists:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Get a single playlist by ID
-   */
-  getPlaylistById(id: string): SavedPlaylist | null {
-    const playlists = this.getAllPlaylists();
-    return playlists.find(p => p.id === id) || null;
-  }
-
-  /**
-   * Delete a playlist
-   */
-  deletePlaylist(id: string): boolean {
-    try {
-      const playlists = this.getAllPlaylists();
-      const filtered = playlists.filter(p => p.id !== id);
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(filtered));
-      return true;
-    } catch (error) {
-      console.error('Error deleting playlist:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Get random emoji for playlist cover
-   */
-  private getRandomEmoji(): string {
-    const emojis = ['🎵', '🎶', '🎧', '🎸', '🎹', '🎺', '🎻', '🥁', '🎤', '🎼', '🎙️', '📻'];
-    return emojis[Math.floor(Math.random() * emojis.length)];
-  }
-
-  /**
-   * Clear all playlists (for testing)
-   */
-  clearAll(): void {
-    localStorage.removeItem(this.STORAGE_KEY);
-  }
+function normalize(raw: any): SavedPlaylist {
+  return {
+    id: String(raw?.id ?? raw?._id),
+    playlist: raw?.playlist,
+    coverEmoji: raw?.coverEmoji ?? '🎵',
+    savedAt: raw?.savedAt ?? raw?.createdAt ?? new Date().toISOString(),
+  };
 }
 
-export const playlistStorage = new PlaylistStorageService();
+export const playlistStorage = {
+  async savePlaylist(playlist: PlaylistResult): Promise<SavedPlaylist> {
+    const response = await api.post('/playlists', { playlist });
+    return normalize(response.data?.playlist ?? response.data);
+  },
+
+  async getAllPlaylists(): Promise<SavedPlaylist[]> {
+    const response = await api.get('/playlists');
+    const payload = response.data?.playlists ?? response.data ?? [];
+    if (!Array.isArray(payload)) return [];
+    return payload.map(normalize);
+  },
+
+  async getPlaylistById(id: string): Promise<SavedPlaylist> {
+    const response = await api.get(`/playlists/${id}`);
+    return normalize(response.data?.playlist ?? response.data);
+  },
+
+  async deletePlaylist(id: string): Promise<void> {
+    await api.delete(`/playlists/${id}`);
+  },
+};
+
+export function useSavedPlaylists(options: { autoLoad?: boolean } = {}) {
+  const autoLoad = options.autoLoad !== false;
+  const [playlists, setPlaylists] = useState<SavedPlaylist[]>([]);
+  const [loading, setLoading] = useState(autoLoad);
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await playlistStorage.getAllPlaylists();
+      setPlaylists(data);
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.message ??
+        err?.response?.data?.error ??
+        err?.message ??
+        'Failed to load playlists';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!autoLoad) return;
+    reload();
+  }, [autoLoad, reload]);
+
+  const savePlaylistToLibrary = useCallback(async (playlist: PlaylistResult) => {
+    const saved = await playlistStorage.savePlaylist(playlist);
+    setPlaylists((prev) => [saved, ...prev]);
+    return saved;
+  }, []);
+
+  const deletePlaylistFromLibrary = useCallback(async (id: string) => {
+    await playlistStorage.deletePlaylist(id);
+    setPlaylists((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
+  const getPlaylistById = useCallback(async (id: string) => {
+    return playlistStorage.getPlaylistById(id);
+  }, []);
+
+  return {
+    playlists,
+    loading,
+    error,
+    reload,
+    savePlaylist: savePlaylistToLibrary,
+    deletePlaylist: deletePlaylistFromLibrary,
+    getPlaylistById,
+  };
+}

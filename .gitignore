@@ -45,6 +45,12 @@ out/
 .DS_Store
 Thumbs.db
 
+# Build artifacts
+/backend/dist
+/backend/tsconfig.tsbuildinfo
+/frontend/playlist-generator/dist
+/frontend/playlist-generator/.vite
+
 # Byte-compiled files
 __pycache__/
 *.py[cod]
