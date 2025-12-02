@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from '../../components/ui/Sidebar';
-import { playlistStorage } from '../../services/playlistStorage.service';
+import { useSavedPlaylists } from '../../services/playlistStorage.service';
 import { playlistService } from '../../services/playlist.service';
 import type { PlaylistResult } from '../../types/song.types';
 import '../../main.css';
@@ -10,7 +10,9 @@ export const Playlist: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const playlist = location.state?.playlist as PlaylistResult | null;
+  const { savePlaylist } = useSavedPlaylists({ autoLoad: false });
   const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -33,36 +35,30 @@ export const Playlist: React.FC = () => {
   };
 
 
-  const handleSavePlaylist = () => {
-    console.log('Save button clicked!');
-    
+  const handleSavePlaylist = async () => {
     if (!playlist) {
-      console.error('No playlist data to save');
       setSaveError('No playlist data available');
       return;
     }
     
     try {
-      console.log('Attempting to save playlist...');
-      const savedPlaylist = playlistStorage.savePlaylist(playlist);
-      console.log('Playlist saved successfully:', savedPlaylist);
-      
-      setIsSaved(true);
+      setIsSaving(true);
       setSaveError(null);
+      await savePlaylist(playlist);
+      setIsSaved(true);
       
       // Show success message temporarily
       setTimeout(() => {
         setIsSaved(false);
       }, 3000);
-      
-      // Also log to console for verification
-      console.log('All saved playlists:', playlistStorage.getAllPlaylists());
-      
     } catch (error) {
-      console.error('Error saving playlist:', error);
-      setSaveError('Failed to save playlist. Check console for details.');
-      alert('Failed to save playlist. Please check the console for errors.');
+      const message =
+        (error as any)?.response?.data?.message ??
+        (error as any)?.message ??
+        'Failed to save playlist';
+      setSaveError(message);
     }
+    setIsSaving(false);
   };
 
   const handleViewLibrary = () => {
@@ -216,9 +212,9 @@ export const Playlist: React.FC = () => {
           <button 
             className={`playlist-action-btn ${isSaved ? 'saved' : 'secondary'}`}
             onClick={handleSavePlaylist}
-            disabled={isSaved}
+            disabled={isSaved || isSaving}
           >
-            <span>{isSaved ? '✓' : '💾'}</span> {isSaved ? 'Saved!' : 'Save Playlist'}
+            <span>{isSaved ? '✓' : '💾'}</span> {isSaved ? 'Saved!' : (isSaving ? 'Saving...' : 'Save Playlist')}
           </button>
         </div>
 

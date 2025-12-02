@@ -6,6 +6,7 @@ import connectDB from "./config/db.js";
 import authRoutes from "./routes/auth.js";
 import spotifyUserRoutes from "./routes/spotify-user.js";
 import spotifyPlaylistRoutes from "./routes/spotify-playlists.js";
+import userPlaylistRoutes from "./routes/user-playlists.js";
 
 const app = express();
 
@@ -55,8 +56,8 @@ app.use(cookieParser());
 connectDB();
 
 app.use("/api/auth", authRoutes);
-// Register more specific playlist routes before the generic `/api/spotify` router
 app.use("/api/spotify/playlists", spotifyPlaylistRoutes);
+app.use("/api/playlists", userPlaylistRoutes);
 app.use("/api/spotify", spotifyUserRoutes);
 
 const PORT = process.env.PORT ?? 5001;

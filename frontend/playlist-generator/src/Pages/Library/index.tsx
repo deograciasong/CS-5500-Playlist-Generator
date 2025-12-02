@@ -28,10 +28,16 @@ export const Library: React.FC = () => {
     }
   };
 
-  const loadPlaylists = () => {
-    const playlists = playlistStorage.getAllPlaylists();
-    setSavedPlaylists(playlists);
-    setLoading(false);
+  const loadPlaylists = async () => {
+    try {
+      const playlists = await playlistStorage.getAllPlaylists();
+      setSavedPlaylists(playlists);
+    } catch (err) {
+      console.error('Failed to load playlists:', err);
+      setSavedPlaylists([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLogout = () => {
@@ -44,12 +50,17 @@ export const Library: React.FC = () => {
     navigate('/playlist', { state: { playlist: savedPlaylist.playlist } });
   };
 
-  const handleDeletePlaylist = (id: string, e: React.MouseEvent) => {
+  const handleDeletePlaylist = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening the playlist
     
     if (window.confirm('Delete this playlist?')) {
-      playlistStorage.deletePlaylist(id);
-      loadPlaylists(); // Reload the list
+      try {
+        await playlistStorage.deletePlaylist(id);
+        await loadPlaylists(); // Reload the list
+      } catch (err) {
+        console.error('Failed to delete playlist:', err);
+        alert('Failed to delete playlist. Please try again.');
+      }
     }
   };
 
