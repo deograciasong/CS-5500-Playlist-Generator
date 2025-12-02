@@ -57,8 +57,12 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                 const found = await TrackModel.find({ spotifyTrackId: { $in: needIds } }).lean().exec();
                 for (const f of found) {
                     const sid = f.spotifyTrackId;
-                    if (sid)
-                        targetMap[sid] = f.audioFeatures || {};
+                    if (sid) {
+                        const af = f.audioFeatures || {};
+                        // prefer explicit genre fields if present on the Track doc
+                        const genre = f.genre || f.track_genre || f.trackGenre || (Array.isArray(f.genres) ? f.genres.join(', ') : '') || '';
+                        targetMap[sid] = Object.assign({}, af, { track_genre: genre });
+                    }
                 }
                 // Per-track fallback: name + first artist
                 const remaining = sampleSongs.filter((t) => t.id && !targetMap[t.id]);
@@ -67,7 +71,9 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                         const firstArtist = (t.artists && t.artists[0] && (t.artists[0].name || t.artists[0])) || '';
                         const cand = await TrackModel.findOne({ name: t.name, 'artists.name': firstArtist }).lean().exec();
                         if (cand) {
-                            targetMap[t.id] = cand.audioFeatures || {};
+                            const af = cand.audioFeatures || {};
+                            const genre = cand.genre || cand.track_genre || cand.trackGenre || (Array.isArray(cand.genres) ? cand.genres.join(', ') : '') || '';
+                            targetMap[t.id] = Object.assign({}, af, { track_genre: genre });
                         }
                     }
                     catch (inner) {
@@ -219,8 +225,11 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                         const found = await TrackModel.find({ spotifyTrackId: { $in: needIds } }).lean().exec();
                         for (const f of found) {
                             const sid = f.spotifyTrackId;
-                            if (sid)
-                                targetMap[sid] = f.audioFeatures || {};
+                            if (sid) {
+                                const af = f.audioFeatures || {};
+                                const genre = f.genre || f.track_genre || f.trackGenre || (Array.isArray(f.genres) ? f.genres.join(', ') : '') || '';
+                                targetMap[sid] = Object.assign({}, af, { track_genre: genre });
+                            }
                         }
                         // For any remaining ids, try matching by name + first artist
                         const remaining = tracks.filter((t) => t.id && !targetMap[t.id]);
@@ -233,7 +242,9 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                                 }).lean().exec();
                                 if (cand) {
                                     const sid = t.id;
-                                    targetMap[sid] = cand.audioFeatures || {};
+                                    const af = cand.audioFeatures || {};
+                                    const genre = cand.genre || cand.track_genre || cand.trackGenre || (Array.isArray(cand.genres) ? cand.genres.join(', ') : '') || '';
+                                    targetMap[sid] = Object.assign({}, af, { track_genre: genre });
                                 }
                             }
                             catch (inner) {
@@ -414,14 +425,22 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                     // ignore
                 }
             }
+            // If Spotify failed to return features for some tracks, try filling from DB
+            try {
+                await fillFeaturesFromDbForSample(songs, featuresMap);
+            }
+            catch (fillErr) {
+                // ignore
+            }
         }
         const mapped = songs.map((t) => {
             const f = featuresMap[t.id] ?? {};
+            const genreFromFeatures = f && (f.track_genre || f.genre || (Array.isArray(f.genres) ? f.genres.join(', ') : '')) || '';
             return {
                 track_id: t.id,
                 track_name: t.name,
                 artists: (t.artists || []).map((a) => a.name).join(', '),
-                track_genre: '',
+                track_genre: genreFromFeatures,
                 energy: typeof f.energy === 'number' ? f.energy : 0,
                 valence: typeof f.valence === 'number' ? f.valence : 0,
                 duration_ms: t.duration_ms ?? 0,
@@ -573,11 +592,12 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                 if (sampleIds.has(c.spotifyTrackId))
                     continue;
                 const af = c.audioFeatures || {};
+                const genre = c.genre || c.track_genre || c.trackGenre || (Array.isArray(c.genres) ? c.genres.join(', ') : '') || '';
                 added.push({
                     track_id: c.spotifyTrackId,
                     track_name: c.name,
                     artists: (c.artists || []).map((a) => a.name).join(', '),
-                    track_genre: '',
+                    track_genre: genre,
                     energy: (af.energy ?? 0),
                     valence: (af.valence ?? 0),
                     duration_ms: c.durationMs ?? 0,
