@@ -16,7 +16,7 @@ const AUTH_URL = "https://accounts.spotify.com/authorize";
 const clientId = process.env.SPOTIFY_CLIENT_ID;
 const redirectUri = process.env.SPOTIFY_REDIRECT_URI;
 const appRedirect = process.env.APP_REDIRECT_AFTER_LOGIN ?? "/dashboard";
-const scope = "user-read-email user-read-private playlist-modify-public playlist-modify-private";
+const scope = "user-read-email user-read-private user-library-read playlist-modify-public playlist-modify-private";
 const cookieSecure = process.env.COOKIE_SECURE !== "false";
 /** Cookie presets: toggles secure based on env (secure required for cross-site). */
 const baseCookie = {
