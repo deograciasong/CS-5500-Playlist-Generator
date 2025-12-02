@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { createSpotifyApiClient } from "../lib/spotify-api.js";
 import crypto from 'crypto';
+import analyzeVibeText from '../lib/vibe-analyzer.js';
 // @ts-ignore - Track model is a JS file without types
 import TrackModel from "../models/Track.js";
 import { createSpotifyTokenManager } from "./helpers/spotify-token-manager.js";
@@ -13,48 +14,122 @@ export const generatePlaylistFromSpotify = async (req: Request, res: Response) =
   try {
     const api = createSpotifyApiClient(createSpotifyTokenManager(req, res));
 
-    // First request to learn total saved tracks
-    const head = await api.get<any>("/me/tracks?limit=1&offset=0");
-    const total: number = typeof head.total === 'number' ? head.total : (Array.isArray(head.items) ? head.items.length : 0);
-
+    // Determine desired sample size and check for a vibe text request
     const desired = 20;
-    let songs: any[] = [];
+    const vibeText: string | undefined = (req.body && req.body.vibeText) || req.query?.vibeText;
 
-    if (total === 0) {
-      songs = [];
-    } else if (total <= desired) {
-      // Fetch all
-      const all = await api.get<any>(`/me/tracks?limit=${total}&offset=0`);
-      const items = Array.isArray(all.items) ? all.items : [];
-      songs = items.map((it: any) => it.track).filter(Boolean);
-    } else {
-      // Pick `desired` unique random offsets across [0, total-1]
-      const picks = new Set<number>();
-      while (picks.size < desired) {
-        const idx = Math.floor(Math.random() * total);
-        picks.add(idx);
+    let songs: any[] = [];
+    let targetVec: number[] | null = null;
+
+    if (vibeText && vibeText.trim().length > 0) {
+      // Use an external sentiment/vibe analyzer if configured, otherwise fall back
+      // to the local heuristic in `vibe-analyzer.ts`.
+      try {
+        targetVec = await analyzeVibeText(vibeText);
+      } catch (e) {
+        console.warn('vibe analyzer failed, falling back to local matching', (e as any)?.message ?? e);
+        targetVec = null;
       }
 
-      // Fetch each picked index individually (limit=1, offset=index)
-      const fetches = Array.from(picks).map(async (offset) => {
-        try {
-          const page = await api.get<any>(`/me/tracks?limit=1&offset=${offset}`);
-          const item = Array.isArray(page.items) && page.items.length > 0 ? page.items[0] : null;
-          return item ? item.track : null;
-        } catch (e) {
-          // ignore individual failures
-          return null;
-        }
-      });
+      // Fetch a page of the user's saved tracks (up to 50) and score them against the target
+      try {
+        const page = await api.get<any>('/me/tracks?limit=50&offset=0');
+        const items = Array.isArray(page.items) ? page.items : [];
+        const userTracks = items.map((it: any) => it.track).filter(Boolean);
+        const ids = userTracks.map((t: any) => t.id).filter(Boolean);
 
-      const results = await Promise.all(fetches);
-      songs = results.filter(Boolean) as any[];
+        // Batch audio-features
+        const featuresMapLocal: Record<string, any> = {};
+        if (ids.length > 0) {
+          try {
+            const feats = await api.get<any>(`/audio-features?ids=${ids.join(',')}`);
+            const arr = Array.isArray(feats.audio_features) ? feats.audio_features : feats;
+            if (Array.isArray(arr)) {
+              arr.forEach((f: any) => { if (f && f.id) featuresMapLocal[f.id] = f; });
+            }
+          } catch (e) {
+            console.warn('Failed to fetch audio features for user tracks', (e as any)?.message ?? e);
+          }
+        }
+
+        const dot = (a: number[], b: number[]) => a.reduce((s, v, i) => s + v * (b[i] ?? 0), 0);
+        const norm = (a: number[]) => Math.sqrt(a.reduce((s, v) => s + v * v, 0));
+        const tv = targetVec ?? null;
+
+        const scored = userTracks.map((t: any) => {
+          const f = featuresMapLocal[t.id] ?? {};
+          const tempo = typeof f.tempo === 'number' ? f.tempo / 200 : 0;
+          const vec = [
+            (f.danceability ?? 0),
+            (f.energy ?? 0),
+            (f.valence ?? 0),
+            (f.acousticness ?? 0),
+            (f.instrumentalness ?? 0),
+            (f.liveness ?? 0),
+            (f.speechiness ?? 0),
+            tempo,
+          ];
+          // If we have a target vector use it; otherwise fallback to simple energy/valence distance
+          let similarity = 0;
+          if (tv) {
+            const tnn = norm(tv);
+            similarity = (tnn === 0 || norm(vec) === 0) ? 0 : dot(tv, vec) / (tnn * norm(vec));
+          } else {
+            // fallback: prefer tracks with energy and valence close to medium-high values
+            similarity = (vec[1] + vec[2]) / 2;
+          }
+          return { track: t, similarity };
+        }).sort((a: any, b: any) => b.similarity - a.similarity);
+
+        const top = scored.slice(0, desired).map((s: any) => s.track);
+        songs = top;
+      } catch (e) {
+        console.warn('Failed to fetch user tracks for vibe matching', (e as any)?.message ?? e);
+        songs = [];
+      }
+    } else {
+      // First request to learn total saved tracks
+      const head = await api.get<any>("/me/tracks?limit=1&offset=0");
+      const total: number = typeof head.total === 'number' ? head.total : (Array.isArray(head.items) ? head.items.length : 0);
+
+      let sampled: any[] = [];
+
+      if (total === 0) {
+        sampled = [];
+      } else if (total <= desired) {
+        // Fetch all
+        const all = await api.get<any>(`/me/tracks?limit=${total}&offset=0`);
+        const items = Array.isArray(all.items) ? all.items : [];
+        sampled = items.map((it: any) => it.track).filter(Boolean);
+      } else {
+        // Pick `desired` unique random offsets across [0, total-1]
+        const picks = new Set<number>();
+        while (picks.size < desired) {
+          const idx = Math.floor(Math.random() * total);
+          picks.add(idx);
+        }
+
+        // Fetch each picked index individually (limit=1, offset=index)
+        const fetches = Array.from(picks).map(async (offset) => {
+          try {
+            const page = await api.get<any>(`/me/tracks?limit=1&offset=${offset}`);
+            const item = Array.isArray(page.items) && page.items.length > 0 ? page.items[0] : null;
+            return item ? item.track : null;
+          } catch (e) {
+            // ignore individual failures
+            return null;
+          }
+        });
+
+        const results = await Promise.all(fetches);
+        sampled = results.filter(Boolean) as any[];
+      }
+
+      songs = sampled.slice(0, desired);
     }
 
-    const sample = songs.slice(0, desired);
-
-    // Fetch audio features for sampled tracks in one batch (up to 100)
-    const ids = sample.map((t: any) => t.id).filter(Boolean);
+    // Fetch audio features for sampled Spotify tracks in one batch (up to 100)
+    const ids = songs.map((t: any) => t.id).filter(Boolean);
     let featuresMap: Record<string, any> = {};
     if (ids.length > 0) {
       try {
@@ -70,8 +145,7 @@ export const generatePlaylistFromSpotify = async (req: Request, res: Response) =
         console.warn('Failed to fetch audio features for sample', (e as any)?.message ?? e);
       }
     }
-
-    const mapped = sample.map((t: any) => {
+    const mapped = songs.map((t: any) => {
       const f = featuresMap[t.id] ?? {};
       return {
         track_id: t.id,
@@ -125,7 +199,7 @@ export const generatePlaylistFromSpotify = async (req: Request, res: Response) =
 
     // Now find 5 similar songs from our Track DB
     try {
-      // Build centroid vector from sampled audio features
+      // Build centroid vector from sampled audio features (only used when no explicit targetVec)
       const vectorKeys = [
         'danceability',
         'energy',
@@ -137,8 +211,19 @@ export const generatePlaylistFromSpotify = async (req: Request, res: Response) =
         'tempo',
       ];
 
-      const sampleFeatures: number[][] = sample.map((t: any) => {
-        const f = featuresMap[t.id] ?? {};
+      const sampleFeatures: number[][] = mapped.map((m: any) => {
+        // mapped entries include energy/valence for DB extras and Spotify tracks
+        // For Spotify-origin entries, try featuresMap first
+        const f = (featuresMap[m.track_id] ?? null) || (m && {
+          danceability: m.danceability,
+          energy: m.energy,
+          valence: m.valence,
+          acousticness: m.acousticness,
+          instrumentalness: m.instrumentalness,
+          liveness: m.liveness,
+          speechiness: m.speechiness,
+          tempo: m.tempo,
+        }) || {};
         const tempo = typeof f.tempo === 'number' ? f.tempo / 200 : 0; // normalize tempo
         return [
           (f.danceability ?? 0),
@@ -153,14 +238,16 @@ export const generatePlaylistFromSpotify = async (req: Request, res: Response) =
       }).filter(arr => arr.length === vectorKeys.length);
 
       let centroid: number[] = Array(vectorKeys.length).fill(0);
-      if (sampleFeatures.length > 0) {
-        for (const vec of sampleFeatures) {
-          if (!vec) continue;
-          for (let i = 0; i < vec.length; i++) {
-            centroid[i] = (centroid[i] ?? 0) + (vec[i] ?? 0);
+      if (!targetVec) {
+        if (sampleFeatures.length > 0) {
+          for (const vec of sampleFeatures) {
+            if (!vec) continue;
+            for (let i = 0; i < vec.length; i++) {
+              centroid[i] = (centroid[i] ?? 0) + (vec[i] ?? 0);
+            }
           }
+          centroid = centroid.map(v => v / sampleFeatures.length);
         }
-        centroid = centroid.map(v => v / sampleFeatures.length);
       }
 
       // Fetch candidate tracks from DB (only those with audioFeatures)
@@ -169,11 +256,15 @@ export const generatePlaylistFromSpotify = async (req: Request, res: Response) =
         .lean()
         .exec();
 
-      const sampleIds = new Set(sample.map((t: any) => t.id));
+      const sampleIds = new Set(mapped.map((m: any) => m.track_id));
 
       // Cosine similarity helper
       const dot = (a: number[], b: number[]) => a.reduce((s, v, i) => s + v * (b[i] ?? 0), 0);
       const norm = (a: number[]) => Math.sqrt(a.reduce((s, v) => s + v * v, 0));
+
+      // Choose vector to compare against: if a targetVec from the user's prompt exists,
+      // use it; otherwise use the centroid computed from the sampled songs.
+      const compareVec = targetVec ?? centroid;
 
       const scored = candidates.map((c: any) => {
         const af = c.audioFeatures || {};
@@ -188,7 +279,7 @@ export const generatePlaylistFromSpotify = async (req: Request, res: Response) =
           (af.speechiness ?? 0),
           tempo,
         ];
-        const similarity = (norm(centroid) === 0 || norm(vec) === 0) ? 0 : dot(centroid, vec) / (norm(centroid) * norm(vec));
+        const similarity = (norm(compareVec) === 0 || norm(vec) === 0) ? 0 : dot(compareVec, vec) / (norm(compareVec) * norm(vec));
         return { candidate: c, similarity };
       })
       .filter((s: any) => s.candidate && !sampleIds.has(s.candidate.spotifyTrackId));

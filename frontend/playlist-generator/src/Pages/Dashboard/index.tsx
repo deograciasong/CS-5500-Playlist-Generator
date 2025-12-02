@@ -277,7 +277,8 @@ const getGreeting = () => {
       }
 
       // Call backend generator that uses the user's Spotify library
-      const playlist = await playlistService.generateFromSpotify();
+      const vibeText = moodInput && moodInput.trim().length > 0 ? moodInput.trim() : undefined;
+      const playlist = await playlistService.generateFromSpotify(vibeText);
       // Navigate to playlist viewer
       setTimeout(() => {
         navigate('/playlist', { state: { playlist } });
@@ -589,9 +590,22 @@ Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studyin
         <div style={{ marginTop: '2rem', textAlign: 'center' }}>
           <h3 style={{ color: 'white', marginBottom: '1rem', fontSize: '1.5rem' }}>🤖 Let AI decide</h3>
           <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: '1.5rem' }}>
-            Let the AI craft a playlist for you by analyzing your Spotify library and our dataset.
-            This feature requires a linked Spotify account and may take a few seconds to generate.
+            Describe the vibe you want and the AI will pick 20 songs from your Spotify library
+            that match it, then add 5 similar recommendations from our dataset.
           </p>
+
+          <div style={{ maxWidth: 720, margin: '0 auto 1rem' }}>
+            <textarea
+              className="main-input"
+              placeholder="Describe a vibe: e.g. 'chill, lo-fi, rainy evening with soft piano'"
+              value={moodInput}
+              onChange={(e) => setMoodInput(e.target.value)}
+              rows={4}
+              style={{ width: '100%', resize: 'vertical' }}
+              disabled={loading}
+            />
+          </div>
+
           <button
             style={{
               padding: '1rem 2rem',
@@ -606,7 +620,7 @@ Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studyin
             onClick={handleAIGenerate}
             disabled={loading}
           >
-            {loading ? 'Generating...' : 'AI Generate'}
+            {loading ? 'Generating...' : 'Generate from my vibe'}
           </button>
         </div>
       );

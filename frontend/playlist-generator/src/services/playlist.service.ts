@@ -7,9 +7,11 @@ export const playlistService = {
     return response.data.playlist;
   },
 
-  generateFromSpotify: async (): Promise<Playlist> => {
+  generateFromSpotify: async (vibeText?: string): Promise<Playlist> => {
     // Backend should implement a Spotify-library based generator at this route.
-    const response = await api.post('/spotify/playlists/generate', { useSpotify: true });
+    const payload: any = { useSpotify: true };
+    if (vibeText) payload.vibeText = vibeText;
+    const response = await api.post('/spotify/playlists/generate', payload);
     return response.data.playlist;
   },
 
