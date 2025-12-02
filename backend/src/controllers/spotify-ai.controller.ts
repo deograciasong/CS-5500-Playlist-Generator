@@ -46,6 +46,40 @@ export const generatePlaylistFromSpotify = async (req: Request, res: Response) =
         // the controller will return a helpful reauthorize URL when needed.
       }
     }
+    // If Spotify didn't return audio-features for some sampled songs, attempt
+    // to populate `featuresMap` by matching tracks in our DB (spotifyTrackId
+    // or name + first artist).
+    const fillFeaturesFromDbForSample = async (sampleSongs: any[], targetMap: Record<string, any>) => {
+      try {
+        const needIds = sampleSongs.map((s: any) => s.id).filter(Boolean).filter((id: string) => !targetMap[id]);
+        if (needIds.length === 0) return;
+
+        // Bulk lookup by spotifyTrackId
+        const found = await TrackModel.find({ spotifyTrackId: { $in: needIds } }).lean().exec();
+        for (const f of found) {
+          const sid = f.spotifyTrackId;
+          if (sid) targetMap[sid] = f.audioFeatures || {};
+        }
+
+        // Per-track fallback: name + first artist
+        const remaining = sampleSongs.filter((t: any) => t.id && !targetMap[t.id]);
+        for (const t of remaining) {
+          try {
+            const firstArtist = (t.artists && t.artists[0] && (t.artists[0].name || t.artists[0])) || '';
+            const cand = await TrackModel.findOne({ name: t.name, 'artists.name': firstArtist }).lean().exec();
+            if (cand) {
+              targetMap[t.id] = cand.audioFeatures || {};
+            }
+          } catch (inner) {
+            // ignore
+          }
+        }
+      } catch (dbErr) {
+        console.warn('Failed to fill sampled audio-features from DB', (dbErr as any)?.message ?? dbErr);
+      }
+    };
+
+    // (deferred) will fill after we have `songs` and `featuresMap` in scope
 
     // Determine desired sample size and check for a vibe text request
     const desired = 20;
@@ -178,6 +212,45 @@ export const generatePlaylistFromSpotify = async (req: Request, res: Response) =
             }
           }
         }
+
+        // If Spotify audio-features failed for some tracks (or returned partial results),
+        // try to fill missing audio features by matching tracks in our Track DB
+        // using `spotifyTrackId` or a fallback match by name + first artist.
+        const fillFeaturesFromDb = async (tracks: any[], targetMap: Record<string, any>) => {
+          try {
+            const needIds = tracks.map((t: any) => t.id).filter(Boolean).filter((id: string) => !targetMap[id]);
+            if (needIds.length === 0) return;
+
+            // First try to find exact spotifyTrackId matches in bulk
+            const found = await TrackModel.find({ spotifyTrackId: { $in: needIds } }).lean().exec();
+            for (const f of found) {
+              const sid = f.spotifyTrackId;
+              if (sid) targetMap[sid] = f.audioFeatures || {};
+            }
+
+            // For any remaining ids, try matching by name + first artist
+            const remaining = tracks.filter((t: any) => t.id && !targetMap[t.id]);
+            for (const t of remaining) {
+              try {
+                const firstArtist = (t.artists && t.artists[0] && (t.artists[0].name || t.artists[0])) || '';
+                const cand = await TrackModel.findOne({
+                  name: t.name,
+                  'artists.name': firstArtist,
+                }).lean().exec();
+                if (cand) {
+                  const sid = t.id;
+                  targetMap[sid] = cand.audioFeatures || {};
+                }
+              } catch (inner) {
+                // ignore per-track lookup errors
+              }
+            }
+          } catch (dbErr) {
+            console.warn('Failed to fill audio-features from DB', (dbErr as any)?.message ?? dbErr);
+          }
+        };
+
+        await fillFeaturesFromDb(userTracks, featuresMapLocal);
 
         // Weighted similarity: when a prompt-derived target vector exists, emphasize
         // valence and energy so the user's free-text sentiment has stronger effect.
@@ -377,7 +450,7 @@ export const generatePlaylistFromSpotify = async (req: Request, res: Response) =
 
         for (const ex of extras) {
           if (mapped.length >= desired) break;
-          const sid = ex.spotifyTrackId || ex.spotify_track_id || ex.spotifyId;
+          const sid = ex.spotifyTrackId;
           if (!sid) continue;
           if (excludeIds.has(sid)) continue;
           excludeIds.add(sid);

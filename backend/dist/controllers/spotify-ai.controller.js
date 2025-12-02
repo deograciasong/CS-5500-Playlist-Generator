@@ -45,6 +45,41 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                 // the controller will return a helpful reauthorize URL when needed.
             }
         }
+        // If Spotify didn't return audio-features for some sampled songs, attempt
+        // to populate `featuresMap` by matching tracks in our DB (spotifyTrackId
+        // or name + first artist).
+        const fillFeaturesFromDbForSample = async (sampleSongs, targetMap) => {
+            try {
+                const needIds = sampleSongs.map((s) => s.id).filter(Boolean).filter((id) => !targetMap[id]);
+                if (needIds.length === 0)
+                    return;
+                // Bulk lookup by spotifyTrackId
+                const found = await TrackModel.find({ spotifyTrackId: { $in: needIds } }).lean().exec();
+                for (const f of found) {
+                    const sid = f.spotifyTrackId;
+                    if (sid)
+                        targetMap[sid] = f.audioFeatures || {};
+                }
+                // Per-track fallback: name + first artist
+                const remaining = sampleSongs.filter((t) => t.id && !targetMap[t.id]);
+                for (const t of remaining) {
+                    try {
+                        const firstArtist = (t.artists && t.artists[0] && (t.artists[0].name || t.artists[0])) || '';
+                        const cand = await TrackModel.findOne({ name: t.name, 'artists.name': firstArtist }).lean().exec();
+                        if (cand) {
+                            targetMap[t.id] = cand.audioFeatures || {};
+                        }
+                    }
+                    catch (inner) {
+                        // ignore
+                    }
+                }
+            }
+            catch (dbErr) {
+                console.warn('Failed to fill sampled audio-features from DB', dbErr?.message ?? dbErr);
+            }
+        };
+        // (deferred) will fill after we have `songs` and `featuresMap` in scope
         // Determine desired sample size and check for a vibe text request
         const desired = 20;
         const vibeText = (req.body && req.body.vibeText) || req.query?.vibeText;
@@ -66,11 +101,11 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                     secure: cookieSecure,
                     sameSite: cookieSecure ? 'none' : 'lax',
                 };
-                res.cookie('spotify_code_verifier', codeVerifier, Object.assign(Object.assign({}, baseCookie), { maxAge: 10 * 60 * 1000 }));
+                res.cookie('spotify_code_verifier', codeVerifier, { ...baseCookie, maxAge: 10 * 60 * 1000 });
                 const rawState = crypto.randomBytes(16).toString('hex');
                 const redirectTarget = '/dashboard';
                 const state = `${rawState}|${encodeURIComponent(redirectTarget)}`;
-                res.cookie('spotify_auth_state', state, Object.assign(Object.assign({}, baseCookie), { maxAge: 10 * 60 * 1000 }));
+                res.cookie('spotify_auth_state', state, { ...baseCookie, maxAge: 10 * 60 * 1000 });
                 const authUrl = new URL('https://accounts.spotify.com/authorize');
                 authUrl.searchParams.set('client_id', clientId);
                 authUrl.searchParams.set('response_type', 'code');
@@ -158,9 +193,9 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                             if (se && se.response) {
                                 console.warn('Spotify audio-features response status:', se.response.status);
                                 console.warn('Spotify audio-features response data:', util.inspect(se.response.data, { depth: null, colors: false }));
+                                // persist to a file for easier retrieval from the environment
                                 if (se.response && se.response.status === 403)
                                     reauthNeeded = true;
-                                // persist to a file for easier retrieval from the environment
                                 writeDebugLog({ type: 'chunk', response: se.response && se.response.data ? se.response.data : se });
                             }
                             else {
@@ -172,6 +207,45 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                         }
                     }
                 }
+                // If Spotify audio-features failed for some tracks (or returned partial results),
+                // try to fill missing audio features by matching tracks in our Track DB
+                // using `spotifyTrackId` or a fallback match by name + first artist.
+                const fillFeaturesFromDb = async (tracks, targetMap) => {
+                    try {
+                        const needIds = tracks.map((t) => t.id).filter(Boolean).filter((id) => !targetMap[id]);
+                        if (needIds.length === 0)
+                            return;
+                        // First try to find exact spotifyTrackId matches in bulk
+                        const found = await TrackModel.find({ spotifyTrackId: { $in: needIds } }).lean().exec();
+                        for (const f of found) {
+                            const sid = f.spotifyTrackId;
+                            if (sid)
+                                targetMap[sid] = f.audioFeatures || {};
+                        }
+                        // For any remaining ids, try matching by name + first artist
+                        const remaining = tracks.filter((t) => t.id && !targetMap[t.id]);
+                        for (const t of remaining) {
+                            try {
+                                const firstArtist = (t.artists && t.artists[0] && (t.artists[0].name || t.artists[0])) || '';
+                                const cand = await TrackModel.findOne({
+                                    name: t.name,
+                                    'artists.name': firstArtist,
+                                }).lean().exec();
+                                if (cand) {
+                                    const sid = t.id;
+                                    targetMap[sid] = cand.audioFeatures || {};
+                                }
+                            }
+                            catch (inner) {
+                                // ignore per-track lookup errors
+                            }
+                        }
+                    }
+                    catch (dbErr) {
+                        console.warn('Failed to fill audio-features from DB', dbErr?.message ?? dbErr);
+                    }
+                };
+                await fillFeaturesFromDb(userTracks, featuresMapLocal);
                 // Weighted similarity: when a prompt-derived target vector exists, emphasize
                 // valence and energy so the user's free-text sentiment has stronger effect.
                 const featureWeights = [1, 2.0, 2.0, 0.8, 0.6, 0.3, 0.3, 0.4];
@@ -369,7 +443,7 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                 for (const ex of extras) {
                     if (mapped.length >= desired)
                         break;
-                    const sid = ex.spotifyTrackId || ex.spotify_track_id || ex.spotifyId;
+                    const sid = ex.spotifyTrackId;
                     if (!sid)
                         continue;
                     if (excludeIds.has(sid))
