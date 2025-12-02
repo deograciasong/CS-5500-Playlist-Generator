@@ -52,4 +52,15 @@ export const getCurrentUserPlaylists = async (req, res) => {
         handleSpotifyError(res, error);
     }
 };
+/** Debug endpoint: returns cookies and Authorization header received by the server. */
+export const debugSpotifyCookies = async (req, res) => {
+    try {
+        const cookies = req.cookies ?? {};
+        const authHeader = req.headers.authorization ?? null;
+        res.json({ cookies, authorization: authHeader });
+    }
+    catch (err) {
+        res.status(500).json({ error: 'debug_failed', message: String(err) });
+    }
+};
 //# sourceMappingURL=spotify-user.controller.js.map

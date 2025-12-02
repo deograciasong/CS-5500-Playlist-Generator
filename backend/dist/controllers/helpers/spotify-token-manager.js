@@ -29,6 +29,15 @@ export function createSpotifyTokenManager(req, res) {
     const cookieRefreshToken = req.cookies?.spotify_refresh_token;
     let currentAccessToken = (isNonEmptyString(cookieAccessToken) && cookieAccessToken)
         || extractBearerToken(req.headers.authorization);
+    // Debug: log token source (mask actual token)
+    try {
+        const src = isNonEmptyString(cookieAccessToken) ? 'cookie' : extractBearerToken(req.headers.authorization) ? 'authorization_header' : 'none';
+        const masked = currentAccessToken ? `${String(currentAccessToken).slice(0, 6)}...${String(currentAccessToken).slice(-6)}` : null;
+        console.log('Spotify token manager init - source:', src, 'tokenPresent:', Boolean(currentAccessToken), 'masked:', masked);
+    }
+    catch (e) {
+        // ignore
+    }
     let currentRefreshToken = isNonEmptyString(cookieRefreshToken)
         ? cookieRefreshToken
         : undefined;
