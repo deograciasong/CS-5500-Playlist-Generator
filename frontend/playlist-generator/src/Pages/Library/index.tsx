@@ -1,19 +1,34 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../../components/ui/Sidebar';
 import { Background } from '../../components/ui/Background';
 import { SavedPlaylist, useSavedPlaylists } from '../../services/playlistStorage.service';
+import { authService } from '../../services/auth.service';
+import type { SpotifyUserProfile, User } from '../../types';
 import '../../main.css';
 
 export const Library: React.FC = () => {
   const navigate = useNavigate();
   const { playlists: savedPlaylists, loading, error, deletePlaylist } = useSavedPlaylists();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState<SpotifyUserProfile | User | null>(null);
 
   const handleLogout = () => {
-    console.log('Logged out');
+    authService.logout();
     navigate('/');
   };
+
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const profile = await authService.getCurrentUser();
+        setUser(profile);
+      } catch (err) {
+        console.error('Failed to load user profile', err);
+      }
+    };
+    loadUser();
+  }, []);
 
   const handlePlaylistClick = (savedPlaylist: SavedPlaylist) => {
     // Navigate to playlist page with the saved playlist data
@@ -87,8 +102,9 @@ export const Library: React.FC = () => {
           <Sidebar 
             onLogin={() => {}} 
             onSignup={() => {}} 
-            isAuthenticated={true} 
+            isAuthenticated={!!user} 
             onLogout={handleLogout} 
+            user={user ?? undefined}
           />
         </div>
         
@@ -121,8 +137,9 @@ export const Library: React.FC = () => {
         <Sidebar 
           onLogin={() => {}} 
           onSignup={() => {}} 
-          isAuthenticated={true} 
+          isAuthenticated={!!user} 
           onLogout={handleLogout} 
+          user={user ?? undefined}
         />
       </div>
 

@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from '../../components/ui/Sidebar';
 import { useSavedPlaylists } from '../../services/playlistStorage.service';
 import { playlistService } from '../../services/playlist.service';
+import { authService } from '../../services/auth.service';
+import type { SpotifyUserProfile, User } from '../../types';
 import type { PlaylistResult } from '../../types/song.types';
 import '../../main.css';
 
@@ -31,6 +33,7 @@ export const Playlist: React.FC = () => {
   const [exportedUrl, setExportedUrl] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const [user, setUser] = useState<SpotifyUserProfile | User | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement | null>(null);
   const canEditDetails = !!savedId;
@@ -65,8 +68,20 @@ export const Playlist: React.FC = () => {
     }
   }, [isEditingDetails, canEditDetails]);
 
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const profile = await authService.getCurrentUser();
+        setUser(profile);
+      } catch (err) {
+        console.error('Failed to load user profile', err);
+      }
+    };
+    loadUser();
+  }, []);
+
   const handleLogout = () => {
-    console.log('Logged out');
+    authService.logout();
     navigate('/');
   };
 
@@ -262,8 +277,9 @@ export const Playlist: React.FC = () => {
           <Sidebar 
             onLogin={() => {}} 
             onSignup={() => {}} 
-            isAuthenticated={true} 
+            isAuthenticated={!!user} 
             onLogout={handleLogout} 
+            user={user ?? undefined}
           />
         </div>
         
@@ -304,8 +320,9 @@ export const Playlist: React.FC = () => {
         <Sidebar 
           onLogin={() => {}} 
           onSignup={() => {}} 
-          isAuthenticated={true} 
+          isAuthenticated={!!user} 
           onLogout={handleLogout} 
+          user={user ?? undefined}
         />
       </div>
 
