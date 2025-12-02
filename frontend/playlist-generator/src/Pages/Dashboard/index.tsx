@@ -125,11 +125,11 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
-      // Step 3: Create playlist object
+      // Step 3: Create playlist object with stable id
       const playlist = {
         mood: moodProfile.name,
         songs: uniquePlaylistSongs,
-        description: moodInput
+        description: inputToUse
       };
       
       // Step 4: Navigate to playlist page with the generated playlist

@@ -9,15 +9,26 @@ import '../../main.css';
 export const Playlist: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const playlist = location.state?.playlist as PlaylistResult | null;
-  const { savePlaylist } = useSavedPlaylists({ autoLoad: false });
-  const [isSaved, setIsSaved] = useState(false);
+  const locationPlaylist = (location.state?.playlist as PlaylistResult | undefined) ?? null;
+  const locationSavedId = (location.state as any)?.savedId as string | undefined;
+  const [playlist, setPlaylist] = useState<PlaylistResult | null>(locationPlaylist ?? null);
+  const [savedId, setSavedId] = useState<string | undefined>(locationSavedId);
+  const { savePlaylist, deletePlaylist } = useSavedPlaylists({ autoLoad: false });
+  const [isSaved, setIsSaved] = useState(!!locationSavedId);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportedUrl, setExportedUrl] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setPlaylist(locationPlaylist ?? null);
+    setSavedId(locationSavedId);
+    setIsSaved(!!locationSavedId);
+  }, [locationPlaylist, locationSavedId]);
 
   useEffect(() => {
     // Debug: Log when component mounts
@@ -44,7 +55,9 @@ export const Playlist: React.FC = () => {
     try {
       setIsSaving(true);
       setSaveError(null);
-      await savePlaylist(playlist);
+      const saved = await savePlaylist(playlist);
+      setPlaylist(saved.playlist);
+      setSavedId(saved.id);
       setIsSaved(true);
       
       // Show success message temporarily
@@ -59,6 +72,32 @@ export const Playlist: React.FC = () => {
       setSaveError(message);
     }
     setIsSaving(false);
+  };
+
+  const handleDeletePlaylist = async () => {
+    if (!savedId) {
+      setDeleteError('Save the playlist before deletion');
+      return;
+    }
+
+    if (!window.confirm('Delete this playlist?')) {
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      setDeleteError(null);
+      await deletePlaylist(savedId);
+      navigate('/library');
+    } catch (error) {
+      const message =
+        (error as any)?.response?.data?.message ??
+        (error as any)?.message ??
+        'Failed to delete playlist';
+      setDeleteError(message);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleViewLibrary = () => {
@@ -216,6 +255,15 @@ export const Playlist: React.FC = () => {
           >
             <span>{isSaved ? '✓' : '💾'}</span> {isSaved ? 'Saved!' : (isSaving ? 'Saving...' : 'Save Playlist')}
           </button>
+          {savedId && (
+            <button
+              className="playlist-action-btn secondary"
+              onClick={handleDeletePlaylist}
+              disabled={isDeleting}
+            >
+              <span>🗑️</span> {isDeleting ? 'Deleting...' : 'Delete'}
+            </button>
+          )}
         </div>
 
         {/* Success Banner */}
@@ -247,6 +295,11 @@ export const Playlist: React.FC = () => {
         {exportError && (
           <div className="save-error-banner">
             {exportError}
+          </div>
+        )}
+        {deleteError && (
+          <div className="save-error-banner">
+            {deleteError}
           </div>
         )}
 
