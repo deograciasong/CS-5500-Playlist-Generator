@@ -45,6 +45,9 @@ out/
 .DS_Store
 Thumbs.db
 
+# Ignore frontend public data folder (user-provided data)
+/frontend/playlist-generator/public/data/
+
 # Build artifacts
 /backend/tsconfig.tsbuildinfo
 /frontend/playlist-generator/.vite
