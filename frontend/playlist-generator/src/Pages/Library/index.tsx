@@ -1,14 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../../components/ui/Sidebar';
 import { Background } from '../../components/ui/Background';
-import { SavedPlaylist, useSavedPlaylists } from '../../services/playlistStorage.service';
+import type { User, SpotifyUserProfile } from '../../types/index';
+import { authService } from '../../services/auth.service';
+import { playlistStorage, SavedPlaylist } from '../../services/playlistStorage.service';
 import '../../main.css';
 
 export const Library: React.FC = () => {
   const navigate = useNavigate();
-  const { playlists: savedPlaylists, loading, error, deletePlaylist } = useSavedPlaylists();
+  const [savedPlaylists, setSavedPlaylists] = useState<SavedPlaylist[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState<User | SpotifyUserProfile | null>(null);
+
+  useEffect(() => {
+    loadUser();
+    loadPlaylists();
+  }, []);
+
+  const loadUser = async () => {
+    try {
+      const profile = await authService.getCurrentUser();
+      setUser(profile);
+    } catch (err) {
+      console.error('Failed to load user:', err);
+    }
+  };
+
+  const loadPlaylists = async () => {
+    try {
+      const playlists = await playlistStorage.getAllPlaylists();
+      setSavedPlaylists(playlists);
+    } catch (err) {
+      console.error('Failed to load playlists:', err);
+      setSavedPlaylists([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     console.log('Logged out');
@@ -25,13 +55,11 @@ export const Library: React.FC = () => {
     
     if (window.confirm('Delete this playlist?')) {
       try {
-        await deletePlaylist(id);
-      } catch (err: any) {
-        const message =
-          err?.response?.data?.message ??
-          err?.message ??
-          'Failed to delete playlist';
-        alert(message);
+        await playlistStorage.deletePlaylist(id);
+        await loadPlaylists(); // Reload the list
+      } catch (err) {
+        console.error('Failed to delete playlist:', err);
+        alert('Failed to delete playlist. Please try again.');
       }
     }
   };
@@ -88,7 +116,8 @@ export const Library: React.FC = () => {
             onLogin={() => {}} 
             onSignup={() => {}} 
             isAuthenticated={true} 
-            onLogout={handleLogout} 
+            onLogout={handleLogout}
+            user={user} 
           />
         </div>
         
@@ -123,6 +152,7 @@ export const Library: React.FC = () => {
           onSignup={() => {}} 
           isAuthenticated={true} 
           onLogout={handleLogout} 
+          user={user}
         />
       </div>
 
@@ -133,12 +163,6 @@ export const Library: React.FC = () => {
             {savedPlaylists.length} {savedPlaylists.length === 1 ? 'playlist' : 'playlists'} saved
           </p>
         </div>
-
-        {error && (
-          <div className="save-error-banner">
-            {error}
-          </div>
-        )}
 
         {savedPlaylists.length === 0 ? (
           <div className="empty-library">

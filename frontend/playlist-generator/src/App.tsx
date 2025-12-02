@@ -4,7 +4,9 @@ import { Dashboard } from './Pages/Dashboard';
 import { Playlist } from './Pages/Playlist';
 import { Library } from './Pages/Library';
 import { SignupPage } from './Pages/SignupPage'; 
-import {AccountSettings} from './Pages/AccountSettings';
+import { AccountSettings } from './Pages/AccountSettings';
+import { AnalyticsPage } from './Pages/Analytics';
+import { Premium } from './Pages/Premium';
 
 
 
@@ -18,6 +20,8 @@ export default function App() {
         <Route path="/library" element={<Library />} />
         <Route path="/signup" element={<SignupPage />} />  
         <Route path="/account" element={<AccountSettings />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/premium" element={<Premium />} />
 
       </Routes>
     </Router>
