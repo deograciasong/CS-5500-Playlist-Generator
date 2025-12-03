@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import jwt from "jsonwebtoken";
+import { secureCookieDefaults } from "../lib/auth.js";
 import LocalUser from "../models/LocalUser.js";
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-jwt-secret";
@@ -21,9 +22,7 @@ export const loginLocal = async (req: Request, res: Response) => {
 
     // Set httpOnly cookie for session
     res.cookie("auth_token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      ...secureCookieDefaults,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 

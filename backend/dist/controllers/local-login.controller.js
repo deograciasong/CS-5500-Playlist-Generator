@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { secureCookieDefaults } from "../lib/auth.js";
 import LocalUser from "../models/LocalUser.js";
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-jwt-secret";
 export const loginLocal = async (req, res) => {
@@ -15,9 +16,7 @@ export const loginLocal = async (req, res) => {
         const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
         // Set httpOnly cookie for session
         res.cookie("auth_token", token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
+            ...secureCookieDefaults,
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
         return res.json({ user: { id: user._id, name: user.name, email: user.email }, token });

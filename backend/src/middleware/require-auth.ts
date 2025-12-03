@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
+import { secureCookieDefaults } from "../lib/auth.js";
 import { createSpotifyApiClient } from "../lib/spotify-api.js";
 import { createSpotifyTokenManager } from "../controllers/helpers/spotify-token-manager.js";
 import { fetchCurrentUserProfile } from "../services/spotify-user.service.js";
@@ -15,9 +16,7 @@ function issueAuthCookie(res: Response, userId: string, email?: string) {
   const payload = { sub: userId, ...(email ? { email } : {}), provider: "local" };
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
   res.cookie("auth_token", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    ...secureCookieDefaults,
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
   return token;
