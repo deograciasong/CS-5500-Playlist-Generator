@@ -31,7 +31,7 @@ export const Library: React.FC = () => {
   };
 
   const handlePlaylistClick = (savedPlaylist: SavedPlaylist) => {
-    navigate('/playlist', { state: { playlist: savedPlaylist.playlist, savedId: savedPlaylist.id, fromLibrary: true } });
+    navigate('/playlist', { state: { playlist: savedPlaylist.playlist, savedId: savedPlaylist.id, fromLibrary: true, coverEmoji: savedPlaylist.coverEmoji } });
   };
 
   const handleDeletePlaylist = async (id: string, e: React.MouseEvent) => {

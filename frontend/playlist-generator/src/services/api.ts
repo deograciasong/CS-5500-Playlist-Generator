@@ -10,11 +10,16 @@ const api = axios.create({
   }
 });
 
-// Add auth token to requests
+// By default, rely on httpOnly cookies for auth. To send a bearer explicitly,
+// opt in by setting `config.headers['X-Use-Bearer'] = 'true'`.
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) {
+  if (token && config.headers?.['X-Use-Bearer'] === 'true') {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  // Clean up the marker header so it isn't sent to the server
+  if (config.headers?.['X-Use-Bearer']) {
+    delete (config.headers as any)['X-Use-Bearer'];
   }
   return config;
 });

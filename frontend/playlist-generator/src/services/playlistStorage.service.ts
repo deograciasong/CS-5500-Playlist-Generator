@@ -9,18 +9,41 @@ export interface SavedPlaylist {
   coverEmoji: string;
 }
 
+export const COVER_EMOJIS = [
+  '🎵',
+  '🎶',
+  '🎧',
+  '🎸',
+  '🎹',
+  '🎺',
+  '🎻',
+  '🥁',
+  '🎤',
+  '🎼',
+  '🎙️',
+  '📻',
+];
+
+export function randomCoverEmoji() {
+  return COVER_EMOJIS[Math.floor(Math.random() * COVER_EMOJIS.length)];
+}
+
 function normalize(raw: any): SavedPlaylist {
   return {
     id: String(raw?.id ?? raw?._id),
     playlist: raw?.playlist,
-    coverEmoji: raw?.coverEmoji ?? '🎵',
+    coverEmoji: raw?.coverEmoji ?? randomCoverEmoji(),
     savedAt: raw?.savedAt ?? raw?.createdAt ?? new Date().toISOString(),
   };
 }
 
 export const playlistStorage = {
-  async savePlaylist(playlist: PlaylistResult): Promise<SavedPlaylist> {
-    const response = await api.post('/playlists', { playlist });
+  async savePlaylist(playlist: PlaylistResult, coverEmoji?: string): Promise<SavedPlaylist> {
+    const body: any = { playlist };
+    if (typeof coverEmoji === 'string' && coverEmoji.trim().length > 0) {
+      body.coverEmoji = coverEmoji;
+    }
+    const response = await api.post('/playlists', body);
     return normalize(response.data?.playlist ?? response.data);
   },
 
@@ -81,8 +104,8 @@ export function useSavedPlaylists(options: { autoLoad?: boolean } = {}) {
     reload();
   }, [autoLoad, reload]);
 
-  const savePlaylistToLibrary = useCallback(async (playlist: PlaylistResult) => {
-    const saved = await playlistStorage.savePlaylist(playlist);
+  const savePlaylistToLibrary = useCallback(async (playlist: PlaylistResult, coverEmoji?: string) => {
+    const saved = await playlistStorage.savePlaylist(playlist, coverEmoji);
     setPlaylists((prev) => [saved, ...prev]);
     return saved;
   }, []);

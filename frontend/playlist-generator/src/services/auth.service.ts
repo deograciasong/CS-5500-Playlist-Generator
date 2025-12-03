@@ -38,6 +38,8 @@ export function clearStoredCodeVerifier() {
 
 export const authService = {
   startSpotifyLogin: async (): Promise<string> => {
+    // Clear any stale local bearer token so we rely solely on fresh cookies
+    localStorage.removeItem('token');
     const { codeVerifier, codeChallenge } = await createPkcePair();
     storeCodeVerifier(codeVerifier);
     // If API_URL is a relative path (e.g. '/api') we're likely running with a dev proxy.

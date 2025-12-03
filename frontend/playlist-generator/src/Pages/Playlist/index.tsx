@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from '../../components/ui/Sidebar';
-import { useSavedPlaylists } from '../../services/playlistStorage.service';
+import { randomCoverEmoji, useSavedPlaylists } from '../../services/playlistStorage.service';
 import { playlistService } from '../../services/playlist.service';
 import { authService } from '../../services/auth.service';
 import type { SpotifyUserProfile, User } from '../../types';
@@ -13,10 +13,12 @@ export const Playlist: React.FC = () => {
   const location = useLocation();
   const locationPlaylist = (location.state?.playlist as PlaylistResult | undefined) ?? null;
   const locationSavedId = (location.state as any)?.savedId as string | undefined;
+  const locationCoverEmoji = (location.state as any)?.coverEmoji as string | undefined;
   const fromLibrary = Boolean((location.state as any)?.fromLibrary);
   const showSaveUI = !fromLibrary;
   const [playlist, setPlaylist] = useState<PlaylistResult | null>(locationPlaylist ?? null);
   const [savedId, setSavedId] = useState<string | undefined>(locationSavedId);
+  const [coverEmoji, setCoverEmoji] = useState<string>(() => locationCoverEmoji ?? randomCoverEmoji());
   const { savePlaylist, deletePlaylist, updatePlaylist } = useSavedPlaylists({ autoLoad: false });
   const [titleInput, setTitleInput] = useState(playlist?.mood ?? '');
   const [descriptionInput, setDescriptionInput] = useState(playlist?.description ?? '');
@@ -42,7 +44,10 @@ export const Playlist: React.FC = () => {
     setPlaylist(locationPlaylist ?? null);
     setSavedId(locationSavedId);
     setIsSaved(!!locationSavedId);
-  }, [locationPlaylist, locationSavedId]);
+    if (locationCoverEmoji) {
+      setCoverEmoji(locationCoverEmoji);
+    }
+  }, [locationPlaylist, locationSavedId, locationCoverEmoji]);
 
   useEffect(() => {
     // Debug: Log when component mounts
@@ -121,9 +126,10 @@ export const Playlist: React.FC = () => {
       setSaveError(null);
       setUpdateError(null);
       setUpdateSuccess(false);
-      const saved = await savePlaylist(playlist);
+      const saved = await savePlaylist(playlist, coverEmoji);
       setPlaylist(saved.playlist);
       setSavedId(saved.id);
+      setCoverEmoji(saved.coverEmoji);
       setIsSaved(true);
       
       // Show success message temporarily
@@ -331,7 +337,7 @@ export const Playlist: React.FC = () => {
         </button>
         <div className="playlist-content-inner">
           <div className="playlist-header-section">
-            <div className="playlist-icon-large">🎵</div>
+            <div className="playlist-icon-large">{coverEmoji}</div>
             <div className="playlist-header-info">
               {canEditDetails && isEditingDetails ? (
                 <>
