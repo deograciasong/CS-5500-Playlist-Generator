@@ -174,16 +174,17 @@ You'll need **two terminal windows** - one for backend, one for frontend.
 **Terminal 1: Start Backend Server**
 ```bash
 cd backend
-npm run dev
+npm run build
+npm start
 ```
-✅ Backend will run on: `http://localhost:5000`
+✅ Backend will run on: `http://localhost:5001`
 
 **Terminal 2: Start Frontend Development Server**
 ```bash
 cd frontend/playlist-generator
-npm run dev
+npm run dev -- --host 127.0.0.1 --port 5173
 ```
-✅ Frontend will run on: `http://localhost:5173`
+✅ Frontend will run on: `http://127.0.0.1:5173`
 
 ### Production Build
 
