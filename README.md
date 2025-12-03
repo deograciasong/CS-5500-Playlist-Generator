@@ -24,7 +24,6 @@ The CS5500 Playlist Generator is a smart system that lets users describe their m
 
 - 🎯 Matches the energy, tempo, and overall feel you're going for
 - 🔄 Ensures songs flow nicely together
-- 🧠 Gets smarter over time based on what you skip or like
 - 🎧 Integrates seamlessly with your Spotify account
 
 ### Built With
@@ -47,9 +46,6 @@ The CS5500 Playlist Generator is a smart system that lets users describe their m
 - [JWT](https://jwt.io/) - Secure authentication
 - [Express Validator](https://express-validator.github.io/) - Input validation
 
-**Machine Learning:**
-- Python (TensorFlow/PyTorch) - ML model for mood-based recommendations
-
 **APIs:**
 - [Spotify Web API](https://developer.spotify.com/documentation/web-api/) - Music data and user library access
 
@@ -70,10 +66,6 @@ The CS5500 Playlist Generator is a smart system that lets users describe their m
 - 🔜 Mood-based playlist generation
 - 🔜 AI-powered song recommendations
 - 🔜 Playlist management (CRUD operations)
-- 🔜 Song skip/like tracking for ML training
-- 🔜 Public/private playlist sharing
-- 🔜 Real-time collaboration on playlists
-- 🔜 Audio preview functionality
 - 🔜 Playlist analytics dashboard
 
 ---
