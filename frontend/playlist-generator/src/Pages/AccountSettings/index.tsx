@@ -375,21 +375,6 @@ export const AccountSettings: React.FC = () => {
                   />
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">Member Since</label>
-                  <div style={{ 
-                    padding: '0.75rem',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    borderRadius: '8px',
-                    color: 'rgba(255, 255, 255, 0.6)'
-                  }}>
-                    {user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    }) : 'Unknown'}
-                  </div>
-                </div>
 
                 <div className="form-actions">
                   <button 

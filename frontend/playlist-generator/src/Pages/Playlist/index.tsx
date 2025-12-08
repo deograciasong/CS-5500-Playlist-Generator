@@ -14,6 +14,12 @@ export const Playlist: React.FC = () => {
   const locationPlaylist = (location.state?.playlist as PlaylistResult | undefined) ?? null;
   const locationSavedId = (location.state as any)?.savedId as string | undefined;
   const locationCoverEmoji = (location.state as any)?.coverEmoji as string | undefined;
+  
+  // ✨ NEW: Gemini AI context
+  const aiGenerated = Boolean((location.state as any)?.aiGenerated);
+  const aiReasoning = (location.state as any)?.aiReasoning as string | undefined;
+  const userInput = (location.state as any)?.userInput as string | undefined;
+  
   const fromLibrary = Boolean((location.state as any)?.fromLibrary);
   const showSaveUI = !fromLibrary;
   const [playlist, setPlaylist] = useState<PlaylistResult | null>(locationPlaylist ?? null);
@@ -50,10 +56,11 @@ export const Playlist: React.FC = () => {
   }, [locationPlaylist, locationSavedId, locationCoverEmoji]);
 
   useEffect(() => {
-    // Debug: Log when component mounts
     console.log('Playlist component mounted');
     console.log('Playlist data:', playlist);
-  }, [playlist]);
+    console.log('AI Generated:', aiGenerated);
+    console.log('AI Reasoning:', aiReasoning);
+  }, [playlist, aiGenerated, aiReasoning]);
 
   useEffect(() => {
     if (playlist) {
@@ -67,7 +74,6 @@ export const Playlist: React.FC = () => {
 
   useEffect(() => {
     if (isEditingDetails && canEditDetails) {
-      // Focus the title field when entering edit mode.
       titleInputRef.current?.focus();
       titleInputRef.current?.select();
     }
@@ -132,7 +138,6 @@ export const Playlist: React.FC = () => {
       setCoverEmoji(saved.coverEmoji);
       setIsSaved(true);
       
-      // Show success message temporarily
       setTimeout(() => {
         setIsSaved(false);
       }, 3000);
@@ -243,11 +248,10 @@ export const Playlist: React.FC = () => {
       setExportedUrl(url);
     } catch (error: any) {
       console.error('Failed to export playlist to Spotify', error);
-        // Log server response body (useful for debugging backend validation errors)
-        const serverBody = error?.response?.data;
-        console.debug('Export error response body:', serverBody);
-        const message = serverBody?.message ?? serverBody?.error ?? error?.message ?? 'Export failed';
-        setExportError(message);
+      const serverBody = error?.response?.data;
+      console.debug('Export error response body:', serverBody);
+      const message = serverBody?.message ?? serverBody?.error ?? error?.message ?? 'Export failed';
+      setExportError(message);
     } finally {
       setIsExporting(false);
     }
@@ -360,10 +364,6 @@ export const Playlist: React.FC = () => {
                 <>
                   {(() => {
                     const raw = (titleInput || '').toString().trim();
-                    // If mood is AI (or AI Playlist), display exactly "AI" to avoid
-                    // the duplicated "Playlist" suffix. Otherwise, if the mood string
-                    // already contains the word "playlist", leave it as-is; otherwise
-                    // append "Playlist" for clarity.
                     if (/^ai(\s*playlist)?$/i.test(raw)) {
                       return <h1 className="playlist-main-title">AI Playlist</h1>;
                     }
@@ -374,6 +374,25 @@ export const Playlist: React.FC = () => {
                     const title = hasPlaylist ? raw : `${raw} Playlist`;
                     return <h1 className="playlist-main-title">{title}</h1>;
                   })()}
+                  
+                  {/* ✨ AI-Generated Badge */}
+                  {aiGenerated && (
+                    <div style={{
+                      display: 'inline-block',
+                      padding: '6px 14px',
+                      marginTop: '8px',
+                      background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                      borderRadius: '16px',
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold',
+                      color: 'white',
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px'
+                    }}>
+                      ✨ AI-Generated
+                    </div>
+                  )}
+                  
                   <p className="playlist-description">
                     {descriptionInput && descriptionInput.trim().length > 0
                       ? descriptionInput
@@ -381,6 +400,66 @@ export const Playlist: React.FC = () => {
                   </p>
                 </>
               )}
+              
+              {/* ✨ NEW: Show AI Context if available */}
+              {aiGenerated && userInput && !isEditingDetails && (
+                <div style={{
+                  marginTop: '16px',
+                  padding: '16px',
+                  background: 'rgba(102, 126, 234, 0.1)',
+                  border: '1px solid rgba(102, 126, 234, 0.3)',
+                  borderRadius: '12px'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    marginBottom: '8px',
+                    fontSize: '0.8rem',
+                    fontWeight: 'bold',
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px'
+                  }}>
+                    <span>💭</span>
+                    <span>Your Request</span>
+                  </div>
+                  <p style={{
+                    fontSize: '0.95rem',
+                    lineHeight: '1.5',
+                    color: 'white',
+                    fontStyle: 'italic',
+                    margin: '0 0 12px 0',
+                    paddingLeft: '12px',
+                    borderLeft: '3px solid rgba(102, 126, 234, 0.5)'
+                  }}>
+                    "{userInput}"
+                  </p>
+                  {aiReasoning && (
+                    <>
+                      <div style={{
+                        fontSize: '0.8rem',
+                        fontWeight: 'bold',
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        marginBottom: '6px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '1px'
+                      }}>
+                        AI Analysis:
+                      </div>
+                      <p style={{
+                        fontSize: '0.9rem',
+                        lineHeight: '1.5',
+                        color: 'rgba(255, 255, 255, 0.8)',
+                        margin: 0
+                      }}>
+                        {aiReasoning}
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+              
               <p className="playlist-meta-info">
                 {playlist.songs.length} songs • {formatDuration(totalDuration)}
               </p>
