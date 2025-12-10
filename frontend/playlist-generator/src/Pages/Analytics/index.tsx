@@ -36,22 +36,21 @@ export const Analytics: React.FC = () => {
   const totalPlaylists = playlists.length;
   const totalSongs = playlists.reduce((acc, p) => acc + p.playlist.songs.length, 0);
   
+  const isGeminiPlaylist = (p: (typeof playlists)[number]) => {
+    const playlist: any = p.playlist || {};
+    const mood = (playlist.mood || '').toLowerCase();
+    const desc = (playlist.description || '').toLowerCase();
+    const generator = (playlist.generator || '').toLowerCase();
+    const source = (playlist.source || '').toLowerCase();
+
+    if (playlist.isGemini) return true;
+    if (generator.includes('gemini') || source.includes('gemini')) return true;
+    return mood.includes('gemini') || desc.includes('gemini');
+  };
+
   // Separate playlists by generation method
-  const geminiPlaylists = playlists.filter(p => {
-    const mood = (p.playlist.mood || '').toLowerCase();
-    const desc = (p.playlist.description || '').toLowerCase();
-    return mood.includes('gemini') || desc.includes('energetic music for') || 
-           desc.includes('calm music to') || desc.includes('i need') || desc.includes('i want');
-  });
-  
-  const spotifyAIPlaylists = playlists.filter(p => {
-    const mood = (p.playlist.mood || '').toLowerCase();
-    return mood.includes('spotify') || mood === 'ai' || mood === 'ai playlist';
-  });
-  
-  const manualPlaylists = playlists.filter(p => 
-    !geminiPlaylists.includes(p) && !spotifyAIPlaylists.includes(p)
-  );
+  const geminiPlaylists = playlists.filter(isGeminiPlaylist);
+  const spotifyAIPlaylists = playlists.filter(p => !isGeminiPlaylist(p));
 
   // Calculate average audio features for each AI
   const calculateAverageFeatures = (playlistArray: typeof playlists) => {
@@ -287,16 +286,6 @@ export const Analytics: React.FC = () => {
                         </div>
                       </div>
                     )}
-
-                    <div className="ai-pros">
-                      <h4>✅ Strengths</h4>
-                      <ul>
-                        <li>Natural language understanding</li>
-                        <li>Flexible mood interpretation</li>
-                        <li>Explains reasoning</li>
-                        <li>Works without Spotify login</li>
-                      </ul>
-                    </div>
                   </div>
 
                   {/* Spotify AI Card */}
@@ -383,16 +372,6 @@ export const Analytics: React.FC = () => {
                         </div>
                       </div>
                     )}
-
-                    <div className="ai-pros">
-                      <h4>✅ Strengths</h4>
-                      <ul>
-                        <li>Uses your listening history</li>
-                        <li>Personalized recommendations</li>
-                        <li>Familiar songs</li>
-                        <li>Direct Spotify integration</li>
-                      </ul>
-                    </div>
                   </div>
                 </div>
 

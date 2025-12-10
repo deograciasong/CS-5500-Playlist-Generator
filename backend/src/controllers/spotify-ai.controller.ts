@@ -104,13 +104,13 @@ async function estimateAudioFeaturesWithGemini(tracks: any[], existingMap: Recor
             const id = p.spotify_id || p.id || (p as any).track_id;
             if (!id || existingMap[id]) return;
             existingMap[id] = {
-              danceability: clamp01(p.danceability ?? 0.5),
-              energy: clamp01(p.energy ?? 0.5),
-              valence: clamp01(p.valence ?? 0.5),
-              acousticness: clamp01(p.acousticness ?? 0.2),
-              instrumentalness: clamp01(p.instrumentalness ?? 0.05),
-              liveness: clamp01(p.liveness ?? 0.1),
-              speechiness: clamp01(p.speechiness ?? 0.05),
+              danceability: clamp(p.danceability ?? 0.5),
+              energy: clamp(p.energy ?? 0.5),
+              valence: clamp(p.valence ?? 0.5),
+              acousticness: clamp(p.acousticness ?? 0.2),
+              instrumentalness: clamp(p.instrumentalness ?? 0.05),
+              liveness: clamp(p.liveness ?? 0.1),
+              speechiness: clamp(p.speechiness ?? 0.05),
               tempo: typeof p.tempo_bpm === 'number' ? p.tempo_bpm : typeof p.tempo === 'number' ? p.tempo : 100,
             };
           });
@@ -211,7 +211,7 @@ function parseFeaturesJson(text: string | undefined) {
   return null;
 }
 
-function clamp01(v: number) {
+function clamp(v: number) {
   return Math.max(0, Math.min(1, v));
 }
 
@@ -307,11 +307,11 @@ async function rankTracksWithGemini(vibeText: string, tracks: any[], desired: nu
         if (!isSpotifyId(id)) return;
         ids.push(id);
         features[id] = {
-          energy: typeof v.energy === "number" ? clamp01(v.energy) : undefined,
-          valence: typeof v.valence === "number" ? clamp01(v.valence) : undefined,
-          danceability: typeof v.danceability === "number" ? clamp01(v.danceability) : undefined,
-          acousticness: typeof v.acousticness === "number" ? clamp01(v.acousticness) : undefined,
-          instrumentalness: typeof v.instrumentalness === "number" ? clamp01(v.instrumentalness) : undefined,
+          energy: typeof v.energy === "number" ? clamp(v.energy) : undefined,
+          valence: typeof v.valence === "number" ? clamp(v.valence) : undefined,
+          danceability: typeof v.danceability === "number" ? clamp(v.danceability) : undefined,
+          acousticness: typeof v.acousticness === "number" ? clamp(v.acousticness) : undefined,
+          instrumentalness: typeof v.instrumentalness === "number" ? clamp(v.instrumentalness) : undefined,
           tempo: typeof v.tempo_bpm === "number" ? v.tempo_bpm : undefined,
         };
       } else if (typeof v === "string") {
@@ -666,6 +666,9 @@ export const generatePlaylistFromSpotifyGemini = async (req: Request, res: Respo
         mood: meta.title,
         description: meta.description,
         cover_emoji: meta.emoji,
+        isGemini: true,
+        generator: "gemini",
+        source: "gemini",
         songs,
       },
     });
@@ -1252,6 +1255,9 @@ export const generatePlaylistFromSpotify = async (req: Request, res: Response) =
         mood: meta.title,
         description: meta.description,
         cover_emoji: meta.emoji,
+        isGemini: false,
+        generator: "spotify_ai",
+        source: "spotify",
         songs: combined,
       };
 
@@ -1270,6 +1276,9 @@ export const generatePlaylistFromSpotify = async (req: Request, res: Response) =
         mood: meta.title,
         description: meta.description,
         cover_emoji: meta.emoji,
+        isGemini: false,
+        generator: "spotify_ai",
+        source: "spotify",
         songs: mapped,
       };
       console.log('AI generate returning fallback description:', fallback.description);

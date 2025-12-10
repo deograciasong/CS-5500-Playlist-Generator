@@ -29,9 +29,27 @@ function normalizeSavedAt(input: any): string {
 }
 
 function toResponse(payload: any) {
+  const mood = (payload.playlist?.mood || "").toLowerCase();
+  const desc = (payload.playlist?.description || "").toLowerCase();
+  const generatorRaw = payload.playlist?.generator || "";
+  const sourceRaw = payload.playlist?.source || "";
+  const generatorLc = generatorRaw.toLowerCase();
+  const sourceLc = sourceRaw.toLowerCase();
+  const inferredGemini =
+    payload.playlist?.isGemini === true ||
+    generatorLc.includes("gemini") ||
+    sourceLc.includes("gemini") ||
+    mood.includes("gemini") ||
+    desc.includes("gemini");
+
   return {
     id: String(payload._id),
-    playlist: payload.playlist,
+    playlist: {
+      ...payload.playlist,
+      isGemini: inferredGemini,
+      generator: generatorRaw || (inferredGemini ? "gemini" : ""),
+      source: sourceRaw || (inferredGemini ? "gemini" : ""),
+    },
     coverEmoji: payload.coverEmoji ?? randomEmoji(),
     savedAt: normalizeSavedAt(payload.createdAt ?? payload.updatedAt),
   };
@@ -46,6 +64,9 @@ function extractPlaylistPayload(body: any) {
     mood: playlist.mood,
     description: typeof playlist.description === "string" ? playlist.description : "",
     songs: playlist.songs,
+    isGemini: typeof playlist.isGemini === "boolean" ? playlist.isGemini : undefined,
+    generator: typeof playlist.generator === "string" ? playlist.generator : undefined,
+    source: typeof playlist.source === "string" ? playlist.source : undefined,
   };
 }
 

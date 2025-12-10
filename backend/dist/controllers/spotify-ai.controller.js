@@ -74,13 +74,13 @@ async function estimateAudioFeaturesWithGemini(tracks, existingMap) {
                         if (!id || existingMap[id])
                             return;
                         existingMap[id] = {
-                            danceability: clamp01(p.danceability ?? 0.5),
-                            energy: clamp01(p.energy ?? 0.5),
-                            valence: clamp01(p.valence ?? 0.5),
-                            acousticness: clamp01(p.acousticness ?? 0.2),
-                            instrumentalness: clamp01(p.instrumentalness ?? 0.05),
-                            liveness: clamp01(p.liveness ?? 0.1),
-                            speechiness: clamp01(p.speechiness ?? 0.05),
+                            danceability: clamp(p.danceability ?? 0.5),
+                            energy: clamp(p.energy ?? 0.5),
+                            valence: clamp(p.valence ?? 0.5),
+                            acousticness: clamp(p.acousticness ?? 0.2),
+                            instrumentalness: clamp(p.instrumentalness ?? 0.05),
+                            liveness: clamp(p.liveness ?? 0.1),
+                            speechiness: clamp(p.speechiness ?? 0.05),
                             tempo: typeof p.tempo_bpm === 'number' ? p.tempo_bpm : typeof p.tempo === 'number' ? p.tempo : 100,
                         };
                     });
@@ -173,7 +173,7 @@ function parseFeaturesJson(text) {
     }
     return null;
 }
-function clamp01(v) {
+function clamp(v) {
     return Math.max(0, Math.min(1, v));
 }
 function logGeminiDebug(data) {
@@ -263,11 +263,11 @@ async function rankTracksWithGemini(vibeText, tracks, desired) {
                     return;
                 ids.push(id);
                 features[id] = {
-                    energy: typeof v.energy === "number" ? clamp01(v.energy) : undefined,
-                    valence: typeof v.valence === "number" ? clamp01(v.valence) : undefined,
-                    danceability: typeof v.danceability === "number" ? clamp01(v.danceability) : undefined,
-                    acousticness: typeof v.acousticness === "number" ? clamp01(v.acousticness) : undefined,
-                    instrumentalness: typeof v.instrumentalness === "number" ? clamp01(v.instrumentalness) : undefined,
+                    energy: typeof v.energy === "number" ? clamp(v.energy) : undefined,
+                    valence: typeof v.valence === "number" ? clamp(v.valence) : undefined,
+                    danceability: typeof v.danceability === "number" ? clamp(v.danceability) : undefined,
+                    acousticness: typeof v.acousticness === "number" ? clamp(v.acousticness) : undefined,
+                    instrumentalness: typeof v.instrumentalness === "number" ? clamp(v.instrumentalness) : undefined,
                     tempo: typeof v.tempo_bpm === "number" ? v.tempo_bpm : undefined,
                 };
             }
@@ -620,6 +620,9 @@ export const generatePlaylistFromSpotifyGemini = async (req, res) => {
                 mood: meta.title,
                 description: meta.description,
                 cover_emoji: meta.emoji,
+                isGemini: true,
+                generator: "gemini",
+                source: "gemini",
                 songs,
             },
         });
@@ -1187,6 +1190,9 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                 mood: meta.title,
                 description: meta.description,
                 cover_emoji: meta.emoji,
+                isGemini: false,
+                generator: "spotify_ai",
+                source: "spotify",
                 songs: combined,
             };
             console.log('AI generate returning description:', playlistFinal.description);
@@ -1208,6 +1214,9 @@ export const generatePlaylistFromSpotify = async (req, res) => {
                 mood: meta.title,
                 description: meta.description,
                 cover_emoji: meta.emoji,
+                isGemini: false,
+                generator: "spotify_ai",
+                source: "spotify",
                 songs: mapped,
             };
             console.log('AI generate returning fallback description:', fallback.description);

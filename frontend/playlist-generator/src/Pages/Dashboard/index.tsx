@@ -88,13 +88,6 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const handleMoodSelect = (selectedMood: string) => {
-    setMoodInput(selectedMood);
-    setError('');
-    setDetectedMood('');
-    setAiReasoning('');
-  };
-
   const handleLogout = () => {
     authService.logout();
     navigate('/');

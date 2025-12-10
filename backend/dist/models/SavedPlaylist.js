@@ -31,6 +31,9 @@ const savedPlaylistSchema = new Schema({
         mood: { type: String, required: true },
         description: { type: String, default: "" },
         songs: { type: [savedSongSchema], default: [] },
+        isGemini: { type: Boolean, default: false },
+        generator: { type: String, default: "" },
+        source: { type: String, default: "" },
     },
     coverEmoji: { type: String, default: "🎵" },
 }, {

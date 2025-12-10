@@ -27,6 +27,9 @@ export interface SavedPlaylistDoc extends Document {
         mood: string;
         description: string;
         songs: SavedSong[];
+        isGemini?: boolean;
+        generator?: string;
+        source?: string;
     };
     coverEmoji: string;
     createdAt: Date;

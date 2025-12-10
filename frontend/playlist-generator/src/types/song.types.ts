@@ -37,4 +37,8 @@ export interface PlaylistResult {
   songs: Song[];
   description: string;
   cover_emoji?: string;
+  // Generation metadata
+  isGemini?: boolean;
+  generator?: string;
+  source?: string;
 }
