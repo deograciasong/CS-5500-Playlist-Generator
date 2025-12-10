@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+export declare const generatePlaylistFromSpotifyGemini: (req: Request, res: Response) => Promise<void>;
 /**
  * Simple AI generator placeholder: fetches a user's saved tracks and
  * returns a lightweight playlist object that the frontend can render.

@@ -16,6 +16,12 @@ export const playlistService = {
     return response.data.playlist;
   },
 
+  generateFromSpotifyWithGemini: async (vibeText: string): Promise<PlaylistResult> => {
+    const payload: any = { useSpotify: true, vibeText };
+    const response = await api.post('/spotify/playlists/generate-gemini', payload);
+    return response.data.playlist;
+  },
+
   getUserPlaylists: async (): Promise<Playlist[]> => {
     const response = await api.get('/spotify/playlists');
     return response.data.playlists;

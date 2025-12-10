@@ -17,14 +17,13 @@ export const Playlist: React.FC = () => {
   
   // ✨ NEW: Gemini AI context
   const aiGenerated = Boolean((location.state as any)?.aiGenerated);
-  const aiReasoning = (location.state as any)?.aiReasoning as string | undefined;
   const userInput = (location.state as any)?.userInput as string | undefined;
   
   const fromLibrary = Boolean((location.state as any)?.fromLibrary);
   const showSaveUI = !fromLibrary;
   const [playlist, setPlaylist] = useState<PlaylistResult | null>(locationPlaylist ?? null);
   const [savedId, setSavedId] = useState<string | undefined>(locationSavedId);
-  const [coverEmoji, setCoverEmoji] = useState<string>(() => locationCoverEmoji ?? randomCoverEmoji());
+  const [coverEmoji, setCoverEmoji] = useState<string>(() => locationCoverEmoji ?? locationPlaylist?.cover_emoji ?? randomCoverEmoji());
   const { savePlaylist, deletePlaylist, updatePlaylist } = useSavedPlaylists({ autoLoad: false });
   const [titleInput, setTitleInput] = useState(playlist?.mood ?? '');
   const [descriptionInput, setDescriptionInput] = useState(playlist?.description ?? '');
@@ -52,6 +51,8 @@ export const Playlist: React.FC = () => {
     setIsSaved(!!locationSavedId);
     if (locationCoverEmoji) {
       setCoverEmoji(locationCoverEmoji);
+    } else if (locationPlaylist?.cover_emoji) {
+      setCoverEmoji(locationPlaylist.cover_emoji);
     }
   }, [locationPlaylist, locationSavedId, locationCoverEmoji]);
 
@@ -59,8 +60,7 @@ export const Playlist: React.FC = () => {
     console.log('Playlist component mounted');
     console.log('Playlist data:', playlist);
     console.log('AI Generated:', aiGenerated);
-    console.log('AI Reasoning:', aiReasoning);
-  }, [playlist, aiGenerated, aiReasoning]);
+  }, [playlist, aiGenerated]);
 
   useEffect(() => {
     if (playlist) {
@@ -433,30 +433,8 @@ export const Playlist: React.FC = () => {
                     paddingLeft: '12px',
                     borderLeft: '3px solid rgba(102, 126, 234, 0.5)'
                   }}>
-                    "{userInput}"
+                    {userInput}
                   </p>
-                  {aiReasoning && (
-                    <>
-                      <div style={{
-                        fontSize: '0.8rem',
-                        fontWeight: 'bold',
-                        color: 'rgba(255, 255, 255, 0.7)',
-                        marginBottom: '6px',
-                        textTransform: 'uppercase',
-                        letterSpacing: '1px'
-                      }}>
-                        AI Analysis:
-                      </div>
-                      <p style={{
-                        fontSize: '0.9rem',
-                        lineHeight: '1.5',
-                        color: 'rgba(255, 255, 255, 0.8)',
-                        margin: 0
-                      }}>
-                        {aiReasoning}
-                      </p>
-                    </>
-                  )}
                 </div>
               )}
               

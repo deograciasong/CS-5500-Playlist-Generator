@@ -36,4 +36,5 @@ export interface PlaylistResult {
   mood: string;
   songs: Song[];
   description: string;
+  cover_emoji?: string;
 }

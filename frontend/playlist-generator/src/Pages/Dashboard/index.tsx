@@ -52,8 +52,6 @@ export const Dashboard: React.FC = () => {
   // Gemini AI state 
   const [naturalInput, setNaturalInput] = useState('');
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
-  const [detectedMood, setDetectedMood] = useState('');
-  const [aiReasoning, setAiReasoning] = useState('');
 
   useEffect(() => {
     loadSongsData();
@@ -302,68 +300,43 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
-    if (songs.length === 0) {
-      setError('Music library is still loading. Please wait...');
-      return;
-    }
-
     setAiAnalyzing(true);
     setError('');
-    setDetectedMood('');
 
     try {
-      // Call Gemini AI to detect mood
-      const response = await fetch('/api/ai/detect-mood', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ userInput: naturalInput })
-      });
-
-      if (!response.ok) {
-        throw new Error('AI analysis failed');
-      }
-
-      const result = await response.json();
-      console.log('Gemini AI detected mood:', result);
-      
-      setDetectedMood(result.mood);
-      setAiReasoning(result.reasoning);
-
-      // Use AI-detected mood to generate playlist
-      const moodProfile = analyzeMood(naturalInput);
-      console.log('Mood profile:', moodProfile);
-      
-      const playlistSongs = filterSongsByMood(songs, moodProfile, 20);
-      const uniquePlaylistSongs = getUniqueSongs(playlistSongs);
-      console.log(`Generated Gemini AI playlist with ${uniquePlaylistSongs.length} unique songs`);
-      
-      if (uniquePlaylistSongs.length === 0) {
-        setError('No songs found matching your mood. Try a different description!');
+      const linked = await ensureSpotifyLinked();
+      if (!linked) {
         setAiAnalyzing(false);
+        setError('Please link your Spotify account to use AI generation.');
+        const url = await authService.startSpotifyLogin();
+        window.location.href = url;
         return;
       }
 
-      const playlist = {
-        mood: result.mood,
-        songs: uniquePlaylistSongs,
-        description: naturalInput
-      };
+      // Use Spotify library to build the playlist with Gemini-driven matching
+      const playlist = await playlistService.generateFromSpotifyWithGemini(naturalInput.trim());
       
       setTimeout(() => {
         navigate('/playlist', { 
           state: { 
             playlist,
             aiGenerated: true,
-            aiReasoning: result.reasoning,
-            userInput: naturalInput
+            userInput: naturalInput,
+            coverEmoji: (playlist as any)?.cover_emoji
           } 
         });
       }, 500);
       
-    } catch (err) {
+    } catch (err: any) {
       console.error('Gemini AI generation failed:', err);
-      setError('AI analysis failed. Please try again or use manual mood selection.');
+      const respData = err?.response?.data;
+      const errCode = respData?.error ?? err?.code ?? null;
+      const reauthUrl = respData?.reauthorizeUrl ?? respData?.reauthorize_url ?? null;
+      if (errCode === 'insufficient_spotify_scope' && reauthUrl) {
+        window.location.href = reauthUrl;
+        return;
+      }
+      setError('AI playlist generation failed. Please try again or reconnect Spotify.');
     } finally {
       setAiAnalyzing(false);
     }
@@ -712,7 +685,7 @@ Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studyin
                 {aiAnalyzing ? (
                   <>
                     <div className="spinner"></div>
-                    <span>AI is analyzing your mood...</span>
+                    <span>AI is creating your playlist...</span>
                   </>
                 ) : (
                   <>
@@ -723,53 +696,6 @@ Example: 'Cozy rainy morning vibes, mid-tempo, acoustic, lo-fi beats for studyin
               </button>
 
               {/* AI Detection Result */}
-              {detectedMood && !aiAnalyzing && (
-                <div style={{
-                  marginTop: '1.5rem',
-                  padding: '1rem',
-                  background: 'rgba(102, 126, 234, 0.15)',
-                  border: '2px solid rgba(102, 126, 234, 0.3)',
-                  borderRadius: '12px'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    marginBottom: '0.75rem',
-                    fontSize: '0.85rem',
-                    fontWeight: 'bold',
-                    color: 'rgba(255, 255, 255, 0.7)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '1px'
-                  }}>
-                    <span>✨</span>
-                    <span>AI Detected Your Mood</span>
-                  </div>
-                  <div style={{
-                    display: 'inline-block',
-                    padding: '0.75rem 1.5rem',
-                    background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                    borderRadius: '12px',
-                    fontSize: '1.2rem',
-                    fontWeight: 'bold',
-                    color: 'white',
-                    marginBottom: '0.75rem'
-                  }}>
-                    {detectedMood}
-                  </div>
-                  {aiReasoning && (
-                    <p style={{
-                      fontSize: '0.95rem',
-                      lineHeight: '1.6',
-                      color: 'rgba(255, 255, 255, 0.8)',
-                      fontStyle: 'italic',
-                      margin: 0
-                    }}>
-                      {aiReasoning}
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
 
             {/* Example Chips */}
