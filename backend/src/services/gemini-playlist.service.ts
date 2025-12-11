@@ -436,4 +436,3 @@ export async function generatePlaylistMetaWithGemini(vibeText, songs) {
     return { title: `Gemini AI: ${vibeText}`, description: `AI-picked songs for "${vibeText}"`, emoji: pickCoverEmoji() };
 }
 //# sourceMappingURL=gemini-playlist.service.js.map
-//# sourceMappingURL=gemini-playlist.service.js.map
