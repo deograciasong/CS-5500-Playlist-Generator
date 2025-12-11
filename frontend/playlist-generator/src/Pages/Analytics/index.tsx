@@ -62,8 +62,7 @@ export const Analytics: React.FC = () => {
     return {
       energy: allSongs.reduce((acc, s) => acc + s.energy, 0) / allSongs.length,
       valence: allSongs.reduce((acc, s) => acc + s.valence, 0) / allSongs.length,
-      danceability: allSongs.reduce((acc, s) => acc + s.danceability, 0) / allSongs.length,
-      tempo: allSongs.reduce((acc, s) => acc + s.tempo, 0) / allSongs.length,
+      danceability: allSongs.reduce((acc, s) => acc + s.danceability, 0) / allSongs.length
     };
   };
 
@@ -271,18 +270,6 @@ export const Analytics: React.FC = () => {
                             </div>
                           </div>
                           
-                          <div className="feature-bar">
-                            <div className="feature-label">
-                              <span>🎹 Tempo</span>
-                              <span>{Math.round(geminiFeatures.tempo)} BPM</span>
-                            </div>
-                            <div className="progress-bar">
-                              <div 
-                                className="progress-fill gemini-fill" 
-                                style={{ width: `${Math.min((geminiFeatures.tempo / 200) * 100, 100)}%` }}
-                              />
-                            </div>
-                          </div>
                         </div>
                       </div>
                     )}
@@ -356,19 +343,7 @@ export const Analytics: React.FC = () => {
                               />
                             </div>
                           </div>
-                          
-                          <div className="feature-bar">
-                            <div className="feature-label">
-                              <span>🎹 Tempo</span>
-                              <span>{Math.round(spotifyFeatures.tempo)} BPM</span>
-                            </div>
-                            <div className="progress-bar">
-                              <div 
-                                className="progress-fill spotify-fill" 
-                                style={{ width: `${Math.min((spotifyFeatures.tempo / 200) * 100, 100)}%` }}
-                              />
-                            </div>
-                          </div>
+                        
                         </div>
                       </div>
                     )}
