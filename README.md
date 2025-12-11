@@ -11,7 +11,7 @@
 
 - GitHub: Jenny Nguyen - [@jennyncodes (https://github.com/jennyncodes)]
 
-- GitHub: Zijue Mu - [@mzj37 (https://github.com/mzj37)]
+- GitHub: Zijie Mu - [@mzj37 (https://github.com/mzj37)]
 
 - GitHub: Julia Kim - [@juliahnkim (https://github.com/juliahnkim)]
 
